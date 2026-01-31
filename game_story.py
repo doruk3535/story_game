@@ -38,8 +38,8 @@ STORY_EN = {
     "S01_START": {
     "text": (
         "It's 02:17.\n"
-        "Your phone screen is on, but there's no notification||.\n"
-        "You hear steady footsteps from the corridor||.\n"
+        "Your phone screen is on, but there's no notification.||"
+        "You hear steady footsteps from the corridor.||\n"
         "Too steady."
     ),
     "images": [
@@ -58,11 +58,15 @@ STORY_EN = {
 
     "S02_CORRIDOR_ENTRY": {
         "text": (
-            "You’re at the door.\n"
-            "The footsteps stop right in front of it.\n\n"
+            "You’re at the door.||\n"
+            "The footsteps stop right in front of it.||\n"
             "Someone is listening."
         ),
-        "image": "images/s02_door.png",
+        "images": [
+        "images/s02_door.png",
+        "images/s02_2.png",
+        "images/s02_3.png",
+    ],
         "choices": {
             "1": ("Open the door", "S04_CORRIDOR", []),
             "2": ("Lock the door", "S09_LOOP_ROOM", []),
@@ -1069,33 +1073,46 @@ STORY_TR = {
 },
 
 
-    "S02_CORRIDOR_ENTRY": {
-        "text": (
-            "Kapının önündesin.\n"
-            "Ayak sesleri kapının tam önünde duruyor.\n\n"
-            "Biri seni dinliyor."
-        ),
-        "image": "images/s02_door.png",
-        "choices": {
-            "1": ("Kapıyı aç", "S04_CORRIDOR", []),
-            "2": ("Kapıyı kilitle", "S09_LOOP_ROOM", []),
-            "3": ("Kapının altına bak", "S05_FOOTPRINT", []),
-        },
+"S02_CORRIDOR_ENTRY": {
+    "text": (
+        "Kapının önündesin.\n"
+        "Ayak sesleri kapının tam önünde duruyor.||\n"
+        "Biri seni dinliyor.||\n"
+        "Nefesini bile duyuyorsun."
+    ),
+    "images": [
+        "images/s02_door.png",
+        "images/s02_2.png",
+        "images/s02_3.png",
+    ],
+    "choices": {
+        "1": ("Kapıyı aç", "S04_CORRIDOR", []),
+        "2": ("Kapıyı kilitle", "S09_LOOP_ROOM", []),
+        "3": ("Kapının altına bak", "S05_FOOTPRINT", []),
     },
+},
 
-    "S03_PHONE_LOCK": {
-        "text": (
-            "Kilit ekranında eski bir bildirim görüyorsun.\n"
-            "Bugüne ait değil.\n\n"
-            "Gönderen: Bilinmiyor."
-        ),
-        "image": "images/s03_phone.png",
-        "choices": {
-            "1": ("Bildirimi aç", "S04_CORRIDOR", ["O2"]),
-            "2":  ("Telefonu kapat", "S09_LOOP_ROOM", []),
-            "3": ("Galeriyi aç", "S06_GALLERY", []),
-        },
+
+"S03_PHONE_LOCK": {
+    "text": (
+        "Kilit ekranına bakıyorsun.\n"
+        "Eski bir bildirim var.||\n"
+        "Bugüne ait değil. Gönderen yok.||\n"
+        "Ekran bir an titriyor.\n"
+        "Sanki dokunmanı bekliyor."
+    ),
+    "images": [
+        "images/s03_phone.png",
+        "images/s03_2.png",
+        "images/s03_3.png",
+    ],
+    "choices": {
+        "1": ("Bildirimi aç", "S04_CORRIDOR", ["O2"]),
+        "2": ("Telefonu kapat", "S09_LOOP_ROOM", []),
+        "3": ("Galeriyi aç", "S06_GALLERY", []),
     },
+},
+
 
     "S04_CORRIDOR": {
         "text": (
