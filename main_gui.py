@@ -2,19 +2,27 @@
 # main_gui.py (02:17) - SINGLE FILE FINAL
 # - Splash logo first (root hidden)
 # - Then fullscreen main window + language selection
-# - Cinematic triptych: img1->LEFT, img2->RIGHT, img3->CENTER (final 1-3-2)
-# - 3x512 canvas (no shrinking)
+# - Triptych: 3x512 canvas (no shrinking)
+# - POP-IN + SEGMENTED FLOW:
+#     img1 -> sentence1 -> img2 -> sentence2 -> img3 -> rest
+#   (Split parts with "||" inside story text)
+# - Segments APPEND (all text remains visible)
 # - Music (mp3) + footsteps loop (wav)
 # - Audio settings overlay (icon button)
 # - Typewriter text + tiny click beeps
 # - Choice hover previews (next scene image)
+#
+# UPDATES:
+# - Music starts at 5%
+# - One-shot footstep.mp3 at FIRST scene first "||" boundary with micro shift
+# - Cinematic fade transitions on scene changes (GUARANTEED Canvas overlay, no alpha/Toplevel)
 
 import tkinter as tk
 import os
 import math
 
 # ----------------------------
-# Optional: Pillow for image scaling (recommended)
+# Optional: Pillow for smooth image resizing/animation (recommended)
 # ----------------------------
 PIL_OK = True
 try:
@@ -59,8 +67,11 @@ settings_icon_path = os.path.join(BASE_DIR, "images", "settings_icon.png")
 MUSIC_LOOP = os.path.join(BASE_DIR, "sounds", "atari_loop.mp3")
 FOOTSTEPS_LOOP = os.path.join(BASE_DIR, "sounds", "footsteps_loop.wav")
 
+# One-shot sfx (you said you found footstep.mp3)
+FOOTSTEP_ONESHOT = os.path.join(BASE_DIR, "sounds", "footstep.mp3")
+
 # ----------------------------
-# pygame audio (music + ambience)
+# pygame audio (music + ambience + sfx)
 # ----------------------------
 PYGAME_OK = True
 try:
@@ -73,11 +84,15 @@ except Exception as e:
 music_playing = False
 ambient_playing = False
 
-music_volume_percent = 35
+# Start music at 5%
+music_volume_percent = 5
 music_volume = music_volume_percent / 100.0
 
 steps_sound = None
 steps_channel = None
+
+# One-shot cache
+_sfx_cache = {}
 
 
 def set_music_volume_percent(percent: int):
@@ -154,6 +169,43 @@ def stop_steps_loop():
     ambient_playing = False
 
 
+def play_sfx_once(path: str, volume: float = 0.75):
+    """Play a one-shot sound effect safely (mp3/wav)."""
+    if not PYGAME_OK:
+        return
+    if not path:
+        return
+
+    ap = path if os.path.isabs(path) else os.path.join(BASE_DIR, path)
+    if not os.path.exists(ap):
+        print("SFX MISSING:", ap)
+        return
+
+    try:
+        snd = _sfx_cache.get(ap)
+        if snd is None:
+            snd = pygame.mixer.Sound(ap)
+            _sfx_cache[ap] = snd
+
+        try:
+            snd.set_volume(max(0.0, min(1.0, float(volume))))
+        except:
+            pass
+
+        ch = None
+        try:
+            ch = pygame.mixer.find_channel(True)
+        except:
+            ch = pygame.mixer.Channel(2)
+
+        if ch:
+            ch.play(snd)
+        else:
+            snd.play()
+    except Exception as e:
+        print("SFX PLAY ERROR:", ap, e)
+
+
 def stop_all_audio():
     stop_steps_loop()
     stop_music()
@@ -182,6 +234,11 @@ index = 0
 click_count = 0
 typing_done = True
 
+# Segmented story flow state
+segments = []
+seg_i = 0
+after_segment_hook = None
+
 # Image caches
 _img_cache = {}
 _preview_cache = {}
@@ -201,15 +258,28 @@ SLOT_LX = (IMG_W // 2)
 SLOT_CX = SLOT_LX + IMG_W + GAP
 SLOT_RX = SLOT_CX + IMG_W + GAP
 
-# We keep everything big (no shrinking)
 BIG_W, BIG_H = IMG_W, IMG_H
 
-# Cinematic speed (edit here)
-HOLD_1 = 450   # img1 "big hold" before sliding left
-HOLD_2 = 450   # img2 "big hold" before sliding right
-HOLD_3 = 520   # img3 "big hold" (stays center)
-SLIDE_STEPS = 34
-SLIDE_MS = 18
+# ----------------------------
+# SPEED TUNING (edit these)
+# ----------------------------
+# Pop-in visuals (slower, premium)
+POP_MS = 360         # pop-in duration per image (ms)
+POP_FRAMES = 14      # more frames -> smoother
+POP_DELAY_12 = 140   # img1 -> seg1 pause
+POP_DELAY_23 = 170   # seg->img pause and img->seg pause
+
+# Typewriter (slower)
+TYPE_MS = 30         # normal char delay
+PUNCT_MS = 340       # delay after . ! ?
+HOOK_MS = 110        # small pause between segments/hook calls
+
+# One-shot timing micro shift at "||" boundary
+SFX_SHIFT_MS = 40
+
+# Fade transition (GUARANTEED canvas overlay)
+FADE_MS = 220
+FADE_STEPS = 16
 
 # Carousel state
 carousel_animating = False
@@ -217,7 +287,7 @@ slot_items = {"L": None, "C": None, "R": None}
 slot_images = {"L": None, "C": None, "R": None}
 tmp_refs = {}
 
-# UI widgets (assigned later)
+# UI widgets
 root = None
 bg_label = None
 bg_img = None
@@ -228,6 +298,11 @@ choices_row = None
 choice_buttons = []
 preview_labels = []
 audio_ui = None
+
+# Fade overlay canvas (guaranteed)
+fade_canvas = None
+fade_rect = None
+fade_animating = False
 
 
 # ----------------------------
@@ -257,14 +332,14 @@ def load_photo_fit(path, target_w, target_h, cache_dict):
             scale = min(target_w / w, target_h / h)
             nw = max(1, int(w * scale))
             nh = max(1, int(h * scale))
-            im2 = im.resize((nw, nh))
+            im2 = im.resize((nw, nh), Image.LANCZOS)
             img = ImageTk.PhotoImage(im2)
             cache_dict[key] = img
             return img
         except Exception as e:
             print("PIL LOAD ERROR:", ap, e)
 
-    # Tk fallback (PNG safest)
+    # Tk fallback
     try:
         img_raw = tk.PhotoImage(file=ap)
         w, h = img_raw.width(), img_raw.height()
@@ -305,6 +380,105 @@ def load_preview_image_for_scene(nxt_scene: dict):
     return None
 
 
+def split_text_into_segments(txt: str):
+    """Story text içinde '||' ile böl."""
+    if not txt:
+        return [""]
+    if "||" in txt:
+        parts = [p.strip() for p in txt.split("||")]
+        return [p for p in parts if p != ""]
+    return [txt]
+
+
+# ----------------------------
+# Fade transition (GUARANTEED Canvas Overlay)
+# ----------------------------
+def _fade_set_level(level_idx: int):
+    """
+    Tkinter gerçek opacity yok; stipple ile "fade hissi" veriyoruz.
+    level_idx: 0..4
+    """
+    if fade_canvas is None or fade_rect is None:
+        return
+
+    # lighter -> darker
+    levels = ["", "gray75", "gray50", "gray25", "gray12"]
+    level_idx = max(0, min(4, int(level_idx)))
+
+    try:
+        if level_idx <= 0:
+            fade_canvas.itemconfig(fade_rect, stipple="")
+        else:
+            fade_canvas.itemconfig(fade_rect, stipple=levels[level_idx])
+    except:
+        pass
+
+
+def fade_transition(do_mid_action, on_done=None):
+    """
+    Fade to dark -> do_mid_action() -> fade in
+    Guaranteed: no alpha, no Toplevel. Uses a canvas overlay.
+    """
+    global fade_animating
+    if fade_animating:
+        try:
+            do_mid_action()
+        except:
+            pass
+        if on_done:
+            on_done()
+        return
+
+    if fade_canvas is None or fade_rect is None:
+        # If overlay not ready for some reason, fallback to direct
+        try:
+            do_mid_action()
+        except:
+            pass
+        if on_done:
+            on_done()
+        return
+
+    fade_animating = True
+    step_ms = max(10, int(FADE_MS / max(1, FADE_STEPS)))
+
+    def fade_out(k=0):
+        if k >= FADE_STEPS:
+            # fully dark
+            fade_canvas.lift()
+            _fade_set_level(4)
+
+            try:
+                do_mid_action()
+            except Exception as e:
+                print("FADE MID ACTION ERROR:", e)
+
+            fade_in(0)
+            return
+
+        fade_canvas.lift()
+        idx = min(4, int((k / max(1, (FADE_STEPS - 1))) * 4))
+        _fade_set_level(idx)
+        root.after(step_ms, lambda: fade_out(k + 1))
+
+    def fade_in(k=0):
+        global fade_animating
+        if k >= FADE_STEPS:
+            _fade_set_level(0)
+            fade_canvas.lower()
+            fade_animating = False
+            if on_done:
+                on_done()
+            return
+
+        fade_canvas.lift()
+        idx = min(4, int(((FADE_STEPS - 1 - k) / max(1, (FADE_STEPS - 1))) * 4))
+        _fade_set_level(idx)
+        root.after(step_ms, lambda: fade_in(k + 1))
+
+    fade_out(0)
+
+
 # ----------------------------
 # Carousel helpers
 # ----------------------------
@@ -327,24 +501,6 @@ def place_slot(slot_key, photo, x, y):
     slot_images[slot_key] = photo
 
 
-def canvas_move_item(item, x0, y0, x1, y1, steps=SLIDE_STEPS, ms=SLIDE_MS, on_done=None):
-    dx = (x1 - x0) / steps
-    dy = (y1 - y0) / steps
-
-    def _step(i=0, cx=x0, cy=y0):
-        if i >= steps:
-            carousel_canvas.coords(item, x1, y1)
-            if on_done:
-                on_done()
-            return
-        cx += dx
-        cy += dy
-        carousel_canvas.coords(item, cx, cy)
-        root.after(ms, lambda: _step(i + 1, cx, cy))
-
-    _step()
-
-
 def show_logo_on_canvas():
     carousel_clear()
     logo = load_photo_fit("images/logo.png", CAROUSEL_W, CAROUSEL_H, _img_cache)
@@ -359,103 +515,79 @@ def show_logo_on_canvas():
         )
 
 
-def cinematic_intro_for_scene(image_paths):
+def pop_in_to_slot(slot_key, path, x, y, duration_ms=POP_MS, frames=POP_FRAMES, on_done=None):
     """
-    Final layout: [img1 LEFT] [img3 CENTER] [img2 RIGHT]
-    Sequence:
-    1) img1 big -> slide LEFT (big)
-    2) img2 big -> slide RIGHT (big)
-    3) img3 big -> stay CENTER (big)
+    Pop-in: küçükten büyüyerek doğma efekti.
+    PIL varsa animasyon; yoksa direkt koyar.
     """
-    global carousel_animating
-    carousel_animating = True
-    carousel_clear()
-
-    paths = [p for p in (image_paths or []) if p]
-    while len(paths) < 3:
-        paths.append(None)
-    paths = paths[:3]
-
-    big1 = load_photo_fit(paths[0], BIG_W, BIG_H, _img_cache) if paths[0] else None
-    big2 = load_photo_fit(paths[1], BIG_W, BIG_H, _img_cache) if paths[1] else None
-    big3 = load_photo_fit(paths[2], BIG_W, BIG_H, _img_cache) if paths[2] else None
-
-    if not big1 and not big2 and not big3:
-        carousel_canvas.create_text(
-            CAROUSEL_W // 2, CAROUSEL_H // 2,
-            text="SCENE IMAGES NOT LOADED\nCheck paths in game_story.py",
-            fill="white",
-            font=("Arial", 16, "bold"),
-            justify="center"
-        )
-        print("[SCENE IMAGE LOAD FAIL] paths =", paths)
-        print("[ABS PATHS] =", [abs_path(p) if p else None for p in paths])
-        print("[EXISTS]   =", [os.path.exists(abs_path(p)) if p else None for p in paths])
-        carousel_animating = False
+    if not path:
+        if on_done:
+            on_done()
         return
 
-    def step1():
-        if not big1:
-            root.after(60, step2)
-            return
+    ap = abs_path(path)
+    if not os.path.exists(ap):
+        print("POP_IN MISSING:", ap)
+        if on_done:
+            on_done()
+        return
 
-        item = carousel_canvas.create_image(SLOT_CX, SLOT_Y, image=big1)
-        tmp_refs["big1"] = big1
+    if not PIL_OK:
+        img = load_photo_fit(ap, BIG_W, BIG_H, _img_cache)
+        place_slot(slot_key, img, x, y)
+        if on_done:
+            on_done()
+        return
 
-        def go_left():
-            def finish_left():
-                place_slot("L", big1, SLOT_LX, SLOT_Y)
-                carousel_canvas.delete(item)
-                root.after(60, step2)
+    try:
+        base = Image.open(ap).convert("RGBA")
 
-            canvas_move_item(item, SLOT_CX, SLOT_Y, SLOT_LX, SLOT_Y, on_done=finish_left)
+        bw, bh = base.size
+        scale_fit = min(BIG_W / bw, BIG_H / bh)
+        tw = max(1, int(bw * scale_fit))
+        th = max(1, int(bh * scale_fit))
+        base = base.resize((tw, th), Image.LANCZOS)
 
-        root.after(HOLD_1, go_left)
+        start_s = 0.20
+        end_s = 1.00
 
-    def step2():
-        if not big2:
-            root.after(60, step3)
-            return
+        imgs = []
+        for i in range(frames):
+            t = (i + 1) / frames
+            s = start_s + (end_s - start_s) * t
+            nw = max(1, int(tw * s))
+            nh = max(1, int(th * s))
+            fr = base.resize((nw, nh), Image.LANCZOS)
+            imgs.append(ImageTk.PhotoImage(fr))
 
-        item = carousel_canvas.create_image(SLOT_CX, SLOT_Y, image=big2)
-        tmp_refs["big2"] = big2
+        item = carousel_canvas.create_image(x, y, image=imgs[0])
 
-        def go_right():
-            def finish_right():
-                place_slot("R", big2, SLOT_RX, SLOT_Y)
-                carousel_canvas.delete(item)
-                root.after(60, step3)
+        tmp_refs[f"pop_{slot_key}_frames"] = imgs
+        tmp_refs[f"pop_{slot_key}_item"] = item
 
-            canvas_move_item(item, SLOT_CX, SLOT_Y, SLOT_RX, SLOT_Y, on_done=finish_right)
+        step_ms = max(10, duration_ms // frames)
 
-        root.after(HOLD_2, go_right)
+        def _anim(k=0):
+            if k >= frames:
+                place_slot(slot_key, imgs[-1], x, y)
+                try:
+                    carousel_canvas.delete(item)
+                except:
+                    pass
+                if on_done:
+                    on_done()
+                return
+            carousel_canvas.itemconfig(item, image=imgs[k])
+            root.after(step_ms, lambda: _anim(k + 1))
 
-    def step3():
-        if not big3:
-            end_intro()
-            return
+        _anim(0)
 
-        item = carousel_canvas.create_image(SLOT_CX, SLOT_Y, image=big3)
-        tmp_refs["big3"] = big3
-
-        def finish_center():
-            place_slot("C", big3, SLOT_CX, SLOT_Y)
-            carousel_canvas.delete(item)
-            end_intro()
-
-        root.after(HOLD_3, finish_center)
-
-    def end_intro():
-        global carousel_animating
-        carousel_animating = False
-        # ensure center on top (safe: tag_raise needs an item id)
-        if slot_items.get("C"):
-            try:
-                carousel_canvas.tag_raise(slot_items["C"])
-            except:
-                pass
-
-    step1()
+    except Exception as e:
+        print("POP_IN ERROR:", ap, e)
+        img = load_photo_fit(ap, BIG_W, BIG_H, _img_cache)
+        place_slot(slot_key, img, x, y)
+        if on_done:
+            on_done()
 
 
 # ----------------------------
@@ -514,29 +646,47 @@ def disable_choices():
 
 def go_to(scene_id):
     global current
-    if story and scene_id in story:
-        current = scene_id
-        load_scene()
-    else:
-        print("[GO_TO ERROR] missing scene:", scene_id)
+
+    def _mid():
+        global current
+        if story and scene_id in story:
+            current = scene_id
+            load_scene()
+        else:
+            print("[GO_TO ERROR] missing scene:", scene_id)
+
+    fade_transition(_mid)
 
 
 # ----------------------------
-# Typewriter
+# Typewriter (APPENDS segments + per-segment hook)
 # ----------------------------
-def start_typewriter(text):
-    global full_text, index, click_count, typing_done
+def start_typewriter(text, on_done=None, clear_first=True):
+    """
+    clear_first=True  -> label temizlenir (ilk segment)
+    clear_first=False -> label'e yeni segment eklenir (sonunda hepsi görünür)
+    """
+    global full_text, index, click_count, typing_done, after_segment_hook
+    after_segment_hook = on_done
+
     full_text = text or ""
     index = 0
     click_count = 0
     typing_done = False
-    story_label.config(text="")
+
+    if clear_first:
+        story_label.config(text="")
+    else:
+        cur = story_label.cget("text")
+        if cur.strip():
+            story_label.config(text=cur + "\n\n")
+
     disable_choices()
     type_step()
 
 
 def type_step():
-    global index, click_count, typing_done
+    global index, click_count, typing_done, after_segment_hook
     if index < len(full_text):
         ch = full_text[index]
         story_label.config(text=story_label.cget("text") + ch)
@@ -547,15 +697,95 @@ def type_step():
             if click_count % 3 == 0:
                 soft_click()
 
-        root.after(220 if ch in ".!?" else 20, type_step)
+        root.after(PUNCT_MS if ch in ".!?" else TYPE_MS, type_step)
         return
 
     typing_done = True
+
+    if after_segment_hook:
+        cb = after_segment_hook
+        after_segment_hook = None
+        root.after(HOOK_MS, cb)
+        return
+
     show_buttons_for_scene()
     refresh_all_previews()
 
     if scene and scene.get("end_sound") == "footstep":
         play_steps_loop()
+
+
+# ----------------------------
+# Segmented Scene Flow: img1 -> seg1 -> img2 -> seg2 -> img3 -> rest
+# ----------------------------
+def play_scene_segment_flow(img_list, seg_list):
+    global segments, seg_i
+    segments = seg_list[:] if seg_list else [""]
+    seg_i = 0
+
+    paths = [p for p in (img_list or []) if p]
+    while len(paths) < 3:
+        paths.append(None)
+    p1, p2, p3 = paths[:3]
+
+    def finish_all():
+        show_buttons_for_scene()
+        refresh_all_previews()
+        if scene and scene.get("end_sound") == "footstep":
+            play_steps_loop()
+
+    def write_next_segment():
+        global seg_i
+
+        if seg_i >= len(segments):
+            finish_all()
+            return
+
+        text_part = segments[seg_i]
+        seg_i += 1
+
+        def after_this_segment():
+            # after seg1 -> img2
+            if seg_i == 1:
+                # One-shot at exact "||" boundary for first scene (micro-shift)
+                if current == "S01_START":
+                    root.after(SFX_SHIFT_MS, lambda: play_sfx_once(FOOTSTEP_ONESHOT, volume=0.85))
+
+                if p2:
+                    pop_in_to_slot(
+                        "C", p2, SLOT_CX, SLOT_Y,
+                        duration_ms=POP_MS, frames=POP_FRAMES,
+                        on_done=lambda: root.after(POP_DELAY_23, write_next_segment)
+                    )
+                else:
+                    root.after(POP_DELAY_23, write_next_segment)
+
+            # after seg2 -> img3
+            elif seg_i == 2:
+                if p3:
+                    pop_in_to_slot(
+                        "R", p3, SLOT_RX, SLOT_Y,
+                        duration_ms=POP_MS, frames=POP_FRAMES,
+                        on_done=lambda: root.after(POP_DELAY_23, write_next_segment)
+                    )
+                else:
+                    root.after(POP_DELAY_23, write_next_segment)
+
+            else:
+                root.after(HOOK_MS, write_next_segment)
+
+        # IMPORTANT: first segment clears, others append
+        start_typewriter(text_part, on_done=after_this_segment, clear_first=(seg_i == 1))
+
+    carousel_clear()
+    if p1:
+        pop_in_to_slot(
+            "L", p1, SLOT_LX, SLOT_Y,
+            duration_ms=POP_MS, frames=POP_FRAMES,
+            on_done=lambda: root.after(POP_DELAY_12, write_next_segment)
+        )
+    else:
+        root.after(POP_DELAY_12, write_next_segment)
 
 
 # ----------------------------
@@ -575,12 +805,12 @@ def load_scene():
         return
 
     img_list = get_scene_images_list(scene)
-    cinematic_intro_for_scene(img_list)
 
     for i in range(3):
         hide_choice_preview(i)
 
-    start_typewriter(scene.get("text", ""))
+    seg_list = split_text_into_segments(scene.get("text", ""))
+    play_scene_segment_flow(img_list, seg_list)
 
 
 def show_buttons_for_scene():
@@ -628,8 +858,13 @@ def choose(choice_key):
         print("[BAD NEXT]", current, choice_key, next_id)
         return
 
-    current = next_id
-    load_scene()
+    # Fade transition on scene change
+    def _mid():
+        global current
+        current = next_id
+        load_scene()
+
+    fade_transition(_mid)
 
 
 # ----------------------------
@@ -645,7 +880,7 @@ def set_english():
     reset_events()
     story = STORY_EN
     current = "S01_START" if "S01_START" in story else "start"
-    load_scene()
+    fade_transition(load_scene)
 
 
 def set_turkish():
@@ -653,7 +888,7 @@ def set_turkish():
     reset_events()
     story = STORY_TR
     current = "S01_START" if "S01_START" in story else "start"
-    load_scene()
+    fade_transition(load_scene)
 
 
 def on_escape(e=None):
@@ -672,7 +907,6 @@ class AudioSettingsOverlay:
         self.opened = False
         self.last_nonzero = 35 if music_volume_percent == 0 else music_volume_percent
 
-        # settings button (canvas)
         self.btn = tk.Canvas(master, width=60, height=60,
                              bg=master.cget("bg"),
                              highlightthickness=0, bd=0)
@@ -710,7 +944,6 @@ class AudioSettingsOverlay:
         self.btn.bind("<Leave>", _hover_off)
         self.btn.bind("<Button-1>", self._on_btn_click)
 
-        # panel (hidden)
         self.panel = tk.Frame(master, bg=BG_COLOR, bd=0, highlightthickness=0)
 
         self.canvas = tk.Canvas(self.panel, width=280, height=96, bg=BG_COLOR,
@@ -834,23 +1067,18 @@ class AudioSettingsOverlay:
 # Main screen show/hide helpers
 # ----------------------------
 def show_language_screen():
-    # show bg now (was hidden during splash)
     bg_label.place(x=0, y=0, relwidth=1, relheight=1)
     bg_label.lower()
 
-    # show top canvas + logo
     show_logo_on_canvas()
 
-    # show card
     card.pack(padx=30, pady=(600, 22), fill="x")
     story_label.config(text="Select Language / Dil Seç")
 
-    # language buttons
     choice_buttons[0].config(text="English", command=set_english, state="normal")
     choice_buttons[1].config(text="Türkçe", command=set_turkish, state="normal")
     choice_buttons[2].config(text="", state="disabled")
 
-    # hide previews
     for i in range(3):
         hide_choice_preview(i)
 
@@ -863,7 +1091,6 @@ def start_main_after_splash(splash):
     except:
         pass
 
-    # show main window now
     root.deiconify()
     root.attributes("-fullscreen", True)
     root.focus_force()
@@ -873,12 +1100,10 @@ def start_main_after_splash(splash):
 
 
 def show_splash_logo(duration_ms=1400):
-    # separate splash window (only logo)
     splash = tk.Toplevel(root)
     splash.overrideredirect(True)
     splash.configure(bg=BG_COLOR)
 
-    # logo load
     logo = load_photo_fit("images/logo.png", 900, 360, _img_cache)
 
     sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
@@ -900,22 +1125,40 @@ def show_splash_logo(duration_ms=1400):
 
 
 # ----------------------------
-# Build UI (root hidden initially)
+# Build UI
 # ----------------------------
 root = tk.Tk()
 root.configure(bg=BG_COLOR)
 root.title("02:17")
-root.withdraw()  # IMPORTANT: main window never appears until splash ends
+root.withdraw()
 root.bind("<Escape>", on_escape)
 root.protocol("WM_DELETE_WINDOW", on_escape)
 
-# Background image (load now, but do NOT place yet)
+# Fade overlay canvas (guaranteed, no alpha)
+fade_canvas = tk.Canvas(root, bg="", highlightthickness=0, bd=0)
+fade_canvas.place(x=0, y=0, relwidth=1, relheight=1)
+fade_rect = fade_canvas.create_rectangle(0, 0, 99999, 99999, fill="black", outline="black")
+_fade_set_level(0)
+fade_canvas.lower()
+
+# Keep fade canvas always full-screen on resize
+def _on_root_configure(_e):
+    try:
+        w = root.winfo_width()
+        h = root.winfo_height()
+        fade_canvas.coords(fade_rect, 0, 0, w, h)
+    except:
+        pass
+
+root.bind("<Configure>", _on_root_configure)
+
+# Background
 bg_img = None
 try:
     if PIL_OK and os.path.exists(bg_path):
         im = Image.open(bg_path).convert("RGBA")
         sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
-        im = im.resize((sw, sh))
+        im = im.resize((sw, sh), Image.LANCZOS)
         bg_img = ImageTk.PhotoImage(im)
     else:
         bg_img = tk.PhotoImage(file=bg_path)
@@ -924,15 +1167,14 @@ except Exception as e:
     print("BG LOAD ERROR:", e)
 
 bg_label = tk.Label(root, image=bg_img, bg=BG_COLOR)
-bg_label.image = bg_img  # keep ref
-# NOTE: do not place until show_language_screen()
+bg_label.image = bg_img
 
-# Top triptych canvas (do not raise/lift; safe)
+# Top triptych canvas
 carousel_canvas = tk.Canvas(root, width=CAROUSEL_W, height=CAROUSEL_H,
                            bg=BG_COLOR, highlightthickness=0, bd=0)
 carousel_canvas.place(relx=0.5, y=30, anchor="n")
 
-# Card panel (start hidden - do NOT pack)
+# Card
 card = tk.Frame(root, bg=BG_COLOR, bd=2, relief="groove")
 
 story_label = tk.Label(
@@ -978,21 +1220,15 @@ for col, key in enumerate(["1", "2", "3"]):
 
     btn.bind("<Enter>", lambda e, i=col, k=key: show_choice_preview(i, k))
 
-# Init buttons (will be set in show_language_screen)
 choice_buttons[0].config(text="", state="disabled")
 choice_buttons[1].config(text="", state="disabled")
 choice_buttons[2].config(text="", state="disabled")
 
-# Audio UI (exists but root is hidden anyway)
 audio_ui = AudioSettingsOverlay(root, x=18, y=18)
 
-# Layering safety
-# bg_label is not placed yet; when placed we call bg_label.lower()
 card.lift()
 audio_ui.lift()
 
-# ----------------------------
-# Start: show splash only, then main window
-# ----------------------------
+# Start
 show_splash_logo(duration_ms=1400)
 root.mainloop()

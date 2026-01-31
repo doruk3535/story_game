@@ -37,8 +37,8 @@ STORY_EN = {
     "S01_START": {
     "text": (
         "It's 02:17.\n"
-        "Your phone screen is on, but there's no notification.\n\n"
-        "You hear steady footsteps from the corridor.\n"
+        "Your phone screen is on, but there's no notification||.\n"
+        "You hear steady footsteps from the corridor||.\n"
         "Too steady."
     ),
     "images": [
@@ -1050,8 +1050,8 @@ STORY_TR = {
 "S01_START": {
     "text": (
         "Saat 02:17.\n"
-        "Telefon ekranın açık ama bildirim yok.\n\n"
-        "Koridordan düzenli ayak sesleri geliyor.\n"
+        "Telefon ekranın açık ama bildirim yok.||\n"
+        "Koridordan düzenli ayak sesleri geliyor.||\n"
         "Çok düzenli."
     ),
     "images": [
