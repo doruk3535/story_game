@@ -35,20 +35,25 @@ ENDING_BY_MASK = {m: f"END_F{m+1:02d}" for m in range(32)}
 STORY_EN = {
 
     "S01_START": {
-        "text": (
-            "02:17.\n"
-            "Your phone screen is on, but there are no notifications.\n\n"
-            "Perfectly timed footsteps move through the hallway.\n"
-            "Too perfect."
-        ),
-        "image": "images/s01_room.png",
-        "end_sound": "footstep",
-        "choices": {
-            "1": ("Step to the door", "S02_CORRIDOR_ENTRY", []),
-            "2": ("Check your phone", "S03_PHONE_LOCK", []),
-            "3": ("Try to sleep", "END_E01", []),
-        },
+    "text": (
+        "It's 02:17.\n"
+        "Your phone screen is on, but there's no notification.\n\n"
+        "You hear steady footsteps from the corridor.\n"
+        "Too steady."
+    ),
+    "images": [
+        "images/s01_1_phone.png",
+        "images/s01_2.png",
+        "images/s01_3.png",
+    ],
+    "end_sound": "footstep",
+    "choices": {
+        "1": ("Go to the door", "S02_CORRIDOR_ENTRY", []),
+        "2": ("Check your phone", "S03_PHONE_LOCK", []),
+        "3": ("Try to sleep", "END_E01", []),
     },
+},
+
 
     "S02_CORRIDOR_ENTRY": {
         "text": (
@@ -1042,21 +1047,26 @@ for _m in range(32):
 
 STORY_TR = {
 
-    "S01_START": {
-        "text": (
-            "Saat 02:17.\n"
-            "Telefon ekranın açık, ama bildirim yok.\n\n"
-            "Koridorda kusursuz bir ritimle ayak sesleri ilerliyor.\n"
-            "Fazla kusursuz."
-        ),
-        "image": "images/s01_room.png",
-        "end_sound": "footstep",
-        "choices": {
-            "1": ("Kapıya yaklaş", "S02_CORRIDOR_ENTRY", []),
-            "2": ("Telefonuna bak", "S03_PHONE_LOCK", []),
-            "3": ("Uyumaya çalış", "END_E01", []),
-        },
+"S01_START": {
+    "text": (
+        "Saat 02:17.\n"
+        "Telefon ekranın açık ama bildirim yok.\n\n"
+        "Koridordan düzenli ayak sesleri geliyor.\n"
+        "Çok düzenli."
+    ),
+    "images": [
+        "images/s01_1_phone.png",
+        "images/s01_2.png",
+        "images/s01_3.png",
+    ],
+    "end_sound": "footstep",
+    "choices": {
+        "1": ("Kapıya yaklaş", "S02_CORRIDOR_ENTRY", []),
+        "2": ("Telefonuna bak", "S03_PHONE_LOCK", []),
+        "3": ("Uyumaya çalış", "END_E01", []),
     },
+},
+
 
     "S02_CORRIDOR_ENTRY": {
         "text": (
