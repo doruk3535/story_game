@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
-# main_gui.py (02:17) - SINGLE FILE FINAL (AUDIO FIXED + "TOK TOK" CLICK + GALLERY + BUTTON FRAMES)
+# main_gui.py (02:17) - SINGLE FILE FINAL
 # - Splash logo first (root hidden)
 # - Then fullscreen main window + language selection
 # - Triptych: 3x512 canvas (no shrinking)
 # - POP-IN + SEGMENTED FLOW:
 #     img1 (LEFT) -> seg1 -> img2 (CENTER) -> seg2 -> img3 (RIGHT) -> rest
 #   (Split story text with "||")
-# - Segments APPEND (all text remains visible)
-# - Music loop (mp3 preferred; auto fallback to wav/ogg) + footsteps ambience loop (wav)
+# - Segments APPEND (all text remains visible)  ✅ now only ONE blank line between segments
+# - Music loop (mp3 preferred; auto fallback to wav/ogg)
+# - Footsteps ambience loop (mp3/wav/ogg) ✅ fixed filename: footstep_loop.mp3
 # - Audio settings overlay (music volume)
 # - Typewriter text + DEEPER TOK CLICK (in-memory wav) - NO TRAILING
 # - Endings Gallery: unlock END_F01..END_F32, save to JSON, view from ending screen
 # - Buttons: framed border + hover glow
+# - Flicker support: scene["flicker"] = {"index":2,"slot":"C","intensity":"strong","until":"scene_end"}
+# - Hero(single) support: scene["layout"]="single" + scene["image"]="..."
 # - NO PREVIEWS
 
 import tkinter as tk
@@ -22,13 +25,14 @@ import io
 import wave
 import struct
 import json
+import random
 
 # ----------------------------
 # Optional: Pillow for smooth image resizing/animation (recommended)
 # ----------------------------
 PIL_OK = True
 try:
-    from PIL import Image, ImageTk
+    from PIL import Image, ImageTk, ImageEnhance
 except Exception:
     PIL_OK = False
 
@@ -57,8 +61,10 @@ bg_path = os.path.join(BASE_DIR, "images", "bg.png")
 logo_path = os.path.join(BASE_DIR, "images", "logo.png")
 settings_icon_path = os.path.join(BASE_DIR, "images", "settings_icon.png")
 
-MUSIC_LOOP = os.path.join(BASE_DIR, "sounds", "atari_loop.mp3")           # preferred
-FOOTSTEPS_LOOP = os.path.join(BASE_DIR, "sounds", "footsteps_loop.wav")   # ambience loop
+MUSIC_LOOP = os.path.join(BASE_DIR, "sounds", "atari_loop.mp3")  # preferred
+
+# ✅ IMPORTANT: sende dosya adı "footstep_loop.mp3" (tekil)
+FOOTSTEPS_LOOP = os.path.join(BASE_DIR, "sounds", "footstep_loop.mp3")
 
 # Save progress
 SAVE_PATH = os.path.join(BASE_DIR, "save_0217.json")
@@ -98,7 +104,7 @@ except Exception as e:
 music_playing = False
 ambient_playing = False
 
-music_volume_percent = 35
+music_volume_percent = 5
 music_volume = music_volume_percent / 100.0
 
 steps_sound = None
@@ -125,6 +131,22 @@ def _music_candidates(path_mp3: str):
         root, _ext = os.path.splitext(path_mp3)
         cands.append(root + ".wav")
         cands.append(root + ".ogg")
+    seen = set()
+    out = []
+    for p in cands:
+        if p and p not in seen:
+            seen.add(p)
+            out.append(p)
+    return out
+
+def _sound_candidates(path_any: str):
+    cands = []
+    if path_any:
+        cands.append(path_any)
+        root, _ext = os.path.splitext(path_any)
+        cands.append(root + ".wav")
+        cands.append(root + ".ogg")
+        cands.append(root + ".mp3")
     seen = set()
     out = []
     for p in cands:
@@ -178,20 +200,31 @@ def play_steps_loop():
         return
     if ambient_playing:
         return
-    if not os.path.exists(FOOTSTEPS_LOOP):
-        print("[AUDIO] FOOTSTEPS MISSING:", FOOTSTEPS_LOOP)
+
+    candidates = _sound_candidates(FOOTSTEPS_LOOP)
+    chosen = None
+    for p in candidates:
+        if os.path.exists(p):
+            chosen = p
+            break
+
+    if not chosen:
+        print("[AUDIO] FOOTSTEPS MISSING. Tried:", candidates)
         return
+
     try:
-        if steps_sound is None:
-            steps_sound = pygame.mixer.Sound(FOOTSTEPS_LOOP)
+        steps_sound = pygame.mixer.Sound(chosen)
+
         if steps_channel is None:
             steps_channel = pygame.mixer.Channel(1)
-        steps_channel.set_volume(0.45)
+
+        steps_channel.set_volume(0.55)
         steps_channel.play(steps_sound, loops=-1)
         ambient_playing = True
-        print("[AUDIO] Footsteps loop started.")
+        print("[AUDIO] Footsteps loop started:", os.path.basename(chosen))
     except Exception as e:
         print("[AUDIO] FOOTSTEPS PLAY ERROR:", e)
+        ambient_playing = False
 
 def stop_steps_loop():
     global ambient_playing, steps_channel
@@ -210,21 +243,17 @@ def stop_steps_loop():
 # Fallback: winsound (if pygame not available)
 # ============================================================
 
-# --- TUNING: "TOK TOK" mechanical keyboard feel ---
-# NOTE: Very low freq + very long duration feels "hum". This preset is "tok" without sounding like a beep.
 CLICK_EVERY = 2
 CLICK_MIN_GAP = 0.012
 CLICK_GAIN = 0.95
-CLICK_DUR_MS = 52         # tok needs tail; avoid 100-140ms (too long -> hum)
-CLICK_FREQ_HZ = 900       # attack brightness reference (body is derived lower)
+CLICK_DUR_MS = 52
+CLICK_FREQ_HZ = 900
 
 _last_click_t = 0.0
 _CLICK_WAV_BYTES = None
 
 def _build_click_wav_bytes_16bit(duration_ms=CLICK_DUR_MS, freq_hz=CLICK_FREQ_HZ, gain=CLICK_GAIN):
     """Thick keyboard click: small attack + dominant low body + tiny noise."""
-    import random
-
     sr = 44100
     n = max(1, int(sr * (duration_ms / 1000.0)))
 
@@ -234,8 +263,7 @@ def _build_click_wav_bytes_16bit(duration_ms=CLICK_DUR_MS, freq_hz=CLICK_FREQ_HZ
     attack_ms = 5
     attack_n = max(1, int(sr * attack_ms / 1000.0))
 
-    # BODY is where "tok" lives
-    body_freq = max(180, int(freq_hz * 0.33))   # ~300Hz
+    body_freq = max(180, int(freq_hz * 0.33))
     noise_amt = 0.06
 
     frames = bytearray()
@@ -243,7 +271,6 @@ def _build_click_wav_bytes_16bit(duration_ms=CLICK_DUR_MS, freq_hz=CLICK_FREQ_HZ
     for i in range(n):
         t = i / sr
 
-        # envelope: quick drop then long-ish tail
         if i < attack_n:
             env = 1.0 - (i / attack_n)
         else:
@@ -251,14 +278,12 @@ def _build_click_wav_bytes_16bit(duration_ms=CLICK_DUR_MS, freq_hz=CLICK_FREQ_HZ
             tail_n = max(1, n - attack_n)
             env = 0.70 * (1.0 - (tail_i / tail_n))
 
-        # small attack (click)
         if i < attack_n:
             a = 1.0 if (math.sin(2 * math.pi * (freq_hz * 2.0) * t) >= 0) else -1.0
             attack = 0.35 * a
         else:
             attack = 0.0
 
-        # dominant body (thock)
         b = math.sin(2 * math.pi * body_freq * t)
         body = 0.95 * b
 
@@ -300,7 +325,6 @@ def _ensure_click_assets():
             print("[AUDIO] Click init failed (pygame):", e)
 
 def stop_clicks():
-    # stop click immediately (no trailing)
     if PYGAME_OK and click_channel:
         try:
             click_channel.stop()
@@ -321,16 +345,14 @@ def soft_click():
 
     _ensure_click_assets()
 
-    # Primary: pygame click (reliable)
     if PYGAME_OK and click_sound and click_channel:
         try:
-            click_channel.stop()  # kill previous click (no queue)
+            click_channel.stop()
             click_channel.play(click_sound)
             return
         except:
             pass
 
-    # Fallback: winsound (rare)
     if winsound and _CLICK_WAV_BYTES:
         try:
             winsound.PlaySound(_CLICK_WAV_BYTES, winsound.SND_MEMORY | winsound.SND_ASYNC)
@@ -365,9 +387,7 @@ def load_progress():
 
 def save_progress():
     try:
-        data = {
-            "unlocked_endings": sorted(list(unlocked_endings))
-        }
+        data = {"unlocked_endings": sorted(list(unlocked_endings))}
         with open(SAVE_PATH, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
@@ -419,6 +439,9 @@ GAP = 16
 CAROUSEL_W = (IMG_W * 3) + (GAP * 2)
 CAROUSEL_H = IMG_H
 
+ORIG_CW = CAROUSEL_W
+ORIG_CH = CAROUSEL_H
+
 SLOT_Y = CAROUSEL_H // 2
 SLOT_LX = (IMG_W // 2)
 SLOT_CX = SLOT_LX + IMG_W + GAP
@@ -452,14 +475,125 @@ card = None
 story_label = None
 choices_row = None
 choice_buttons = []
-choice_borders = []  # NEW: frames around buttons
+choice_borders = []
 audio_ui = None
 
 # ----------------------------
-# Utility
+# Flicker state
 # ----------------------------
+_flicker_cfg = None
+_flicker_running = False
+_flicker_job = None
+_flicker_slot = None
+
+def stop_flicker():
+    global _flicker_running, _flicker_job, _flicker_slot
+    _flicker_running = False
+    _flicker_slot = None
+    if _flicker_job is not None:
+        try:
+            root.after_cancel(_flicker_job)
+        except:
+            pass
+    _flicker_job = None
+
+def _intensity_params(intensity: str):
+    intensity = (intensity or "").lower().strip()
+    if intensity == "strong":
+        return {"min_ms": 40, "max_ms": 110, "bright": 1.35, "dark": 0.55, "blink_chance": 0.22}
+    if intensity == "medium":
+        return {"min_ms": 60, "max_ms": 140, "bright": 1.22, "dark": 0.70, "blink_chance": 0.15}
+    return {"min_ms": 70, "max_ms": 170, "bright": 1.15, "dark": 0.80, "blink_chance": 0.10}
+
 def abs_path(p: str) -> str:
     return p if os.path.isabs(p) else os.path.join(BASE_DIR, p)
+
+def _build_flicker_frames_fit(img_path: str, w: int, h: int, intensity: str):
+    if not (PIL_OK and img_path and os.path.exists(abs_path(img_path))):
+        return None
+
+    ap = abs_path(img_path)
+    try:
+        im = Image.open(ap).convert("RGBA")
+        iw, ih = im.size
+        scale = min(w / iw, h / ih)
+        nw = max(1, int(iw * scale))
+        nh = max(1, int(ih * scale))
+        base = im.resize((nw, nh), Image.LANCZOS)
+
+        p = _intensity_params(intensity)
+        bright = ImageEnhance.Brightness(base).enhance(p["bright"])
+        dark = ImageEnhance.Brightness(base).enhance(p["dark"])
+        off = ImageEnhance.Brightness(base).enhance(0.22)
+
+        return [
+            ImageTk.PhotoImage(base),
+            ImageTk.PhotoImage(dark),
+            ImageTk.PhotoImage(bright),
+            ImageTk.PhotoImage(off),
+        ]
+    except Exception as e:
+        print("[FLICKER] build error:", e)
+        return None
+
+def try_start_flicker(slot_key: str, img_path: str):
+    global _flicker_cfg, _flicker_running, _flicker_job, _flicker_slot
+
+    if not _flicker_cfg:
+        return
+    if _flicker_running:
+        return
+
+    idx_map = {"L": 1, "C": 2, "R": 3}
+    want_index = int(_flicker_cfg.get("index", 0) or 0)
+    want_slot = str(_flicker_cfg.get("slot", "") or "").upper().strip()
+    if want_slot == "" or want_slot != slot_key:
+        return
+    if want_index != idx_map.get(slot_key, -1):
+        return
+
+    item = slot_items.get(slot_key)
+    if not item:
+        return
+
+    intensity = str(_flicker_cfg.get("intensity", "medium"))
+    frames = _build_flicker_frames_fit(img_path, BIG_W, BIG_H, intensity) if PIL_OK else None
+    if frames:
+        tmp_refs[f"flicker_frames_{slot_key}"] = frames
+
+    params = _intensity_params(intensity)
+    _flicker_running = True
+    _flicker_slot = slot_key
+
+    def step():
+        global _flicker_job, _flicker_running
+        if not _flicker_running:
+            return
+
+        delay = random.randint(params["min_ms"], params["max_ms"])
+
+        if frames:
+            if random.random() < params["blink_chance"]:
+                fr = frames[3]
+            else:
+                fr = random.choice(frames[:3])
+            try:
+                carousel_canvas.itemconfig(item, image=fr)
+                slot_images[slot_key] = fr
+            except:
+                pass
+        else:
+            try:
+                if random.random() < params["blink_chance"]:
+                    carousel_canvas.itemconfig(item, state="hidden")
+                else:
+                    carousel_canvas.itemconfig(item, state="normal")
+            except:
+                pass
+
+        _flicker_job = root.after(delay, step)
+
+    step()
 
 def load_photo_fit(path, target_w, target_h, cache_dict):
     if not path:
@@ -508,7 +642,7 @@ def get_scene_images_list(scn: dict):
         single = scn.get("image")
         return [single] if single else []
     if isinstance(imgs, (list, tuple)):
-        return [p for p in imgs if p]
+        return list(imgs)  # keep None
     return []
 
 def split_text_into_segments(txt: str):
@@ -519,6 +653,26 @@ def split_text_into_segments(txt: str):
         parts = [p for p in parts if p != ""]
         return parts if parts else [""]
     return [txt]
+
+# ----------------------------
+# Canvas modes
+# ----------------------------
+def set_canvas_triptych_mode():
+    try:
+        carousel_canvas.config(width=ORIG_CW, height=ORIG_CH)
+        carousel_canvas.place(relx=0.5, y=30, anchor="n")
+    except:
+        pass
+
+def set_canvas_hero_mode():
+    try:
+        w = ORIG_CW
+        h = ORIG_CH
+        carousel_canvas.config(width=w, height=h)
+        carousel_canvas.place(relx=0.5, y=30, anchor="n")
+        return w, h
+    except:
+        return ORIG_CW, ORIG_CH
 
 # ----------------------------
 # Carousel helpers
@@ -536,22 +690,44 @@ def place_slot(slot_key, photo, x, y):
     if slot_items[slot_key] is None:
         slot_items[slot_key] = carousel_canvas.create_image(x, y, image=photo)
     else:
-        carousel_canvas.itemconfig(slot_items[slot_key], image=photo)
+        carousel_canvas.itemconfig(slot_items[slot_key], image=photo, state="normal")
         carousel_canvas.coords(slot_items[slot_key], x, y)
     slot_images[slot_key] = photo
 
 def show_logo_on_canvas():
     carousel_clear()
-    logo = load_photo_fit("images/logo.png", CAROUSEL_W, CAROUSEL_H, _img_cache)
+    logo = load_photo_fit("images/logo.png", int(carousel_canvas.cget("width")), int(carousel_canvas.cget("height")), _img_cache)
     if logo:
-        carousel_canvas.create_image(CAROUSEL_W // 2, CAROUSEL_H // 2, image=logo)
+        w = int(carousel_canvas.cget("width"))
+        h = int(carousel_canvas.cget("height"))
+        carousel_canvas.create_image(w // 2, h // 2, image=logo)
         tmp_refs["logo_canvas"] = logo
     else:
+        w = int(carousel_canvas.cget("width"))
+        h = int(carousel_canvas.cget("height"))
         carousel_canvas.create_text(
-            CAROUSEL_W // 2, CAROUSEL_H // 2,
+            w // 2, h // 2,
             text="LOGO LOAD ERROR",
             fill="white", font=("Segoe UI Semibold", 18, "bold")
         )
+
+def show_single_big_image(img_path: str):
+    carousel_clear()
+    w = int(carousel_canvas.cget("width"))
+    h = int(carousel_canvas.cget("height"))
+
+    if not img_path:
+        carousel_canvas.create_text(w // 2, h // 2, text="NO IMAGE", fill="white",
+                                   font=("Segoe UI Semibold", 18, "bold"))
+        return
+
+    photo = load_photo_fit(img_path, w, h, _img_cache)
+    if photo:
+        carousel_canvas.create_image(w // 2, h // 2, image=photo)
+        tmp_refs["hero_img"] = photo
+    else:
+        carousel_canvas.create_text(w // 2, h // 2, text="IMAGE LOAD ERROR", fill="white",
+                                   font=("Segoe UI Semibold", 18, "bold"))
 
 def pop_in_to_slot(slot_key, path, x, y, duration_ms=POP_MS, frames=POP_FRAMES, on_done=None):
     if not path:
@@ -569,6 +745,7 @@ def pop_in_to_slot(slot_key, path, x, y, duration_ms=POP_MS, frames=POP_FRAMES, 
     if not PIL_OK:
         img = load_photo_fit(ap, BIG_W, BIG_H, _img_cache)
         place_slot(slot_key, img, x, y)
+        try_start_flicker(slot_key, path)
         if on_done:
             on_done()
         return
@@ -607,9 +784,13 @@ def pop_in_to_slot(slot_key, path, x, y, duration_ms=POP_MS, frames=POP_FRAMES, 
                     carousel_canvas.delete(item)
                 except:
                     pass
+
+                try_start_flicker(slot_key, path)
+
                 if on_done:
                     on_done()
                 return
+
             carousel_canvas.itemconfig(item, image=frames_list[k])
             root.after(step_ms, lambda: _anim(k + 1))
 
@@ -619,11 +800,12 @@ def pop_in_to_slot(slot_key, path, x, y, duration_ms=POP_MS, frames=POP_FRAMES, 
         print("POP_IN ERROR:", ap, e)
         img = load_photo_fit(ap, BIG_W, BIG_H, _img_cache)
         place_slot(slot_key, img, x, y)
+        try_start_flicker(slot_key, path)
         if on_done:
             on_done()
 
 # ----------------------------
-# Button border hover (NEW)
+# Button border hover
 # ----------------------------
 BORDER_OFF = "#2a3a6a"
 BORDER_ON = "#4f6cff"
@@ -641,13 +823,6 @@ def bind_border_hover(btn, border_frame):
             pass
     btn.bind("<Enter>", on)
     btn.bind("<Leave>", off)
-
-def set_border_active(i, active: bool):
-    # optional helper if you later want to indicate selected/locked
-    try:
-        choice_borders[i].config(bg=BORDER_ON if active else BORDER_OFF)
-    except:
-        pass
 
 # ----------------------------
 # Navigation helpers
@@ -667,8 +842,6 @@ def go_to(scene_id):
 
 # ----------------------------
 # Typewriter (APPENDS segments + per-segment hook)
-# - "tok tok": every 2 letters
-# - NO TRAILING: stop_clicks() when typing ends
 # ----------------------------
 def start_typewriter(text, on_done=None, clear_first=True):
     global full_text, index, click_count, typing_done, after_segment_hook
@@ -679,14 +852,14 @@ def start_typewriter(text, on_done=None, clear_first=True):
     click_count = 0
     typing_done = False
 
-    stop_clicks()  # hard cut anything from previous segment
+    stop_clicks()
 
     if clear_first:
         story_label.config(text="")
     else:
         cur = story_label.cget("text")
         if cur.strip():
-            story_label.config(text=cur + "\n\n")
+            story_label.config(text=cur + "\n")
 
     disable_choices()
     type_step()
@@ -697,7 +870,6 @@ def type_step():
     if index < len(full_text):
         ch = full_text[index]
 
-        # click only on letters/numbers (no spaces/punct)
         if (not ch.isspace()) and (ch not in ".!?," ):
             click_count += 1
             if click_count % CLICK_EVERY == 0:
@@ -710,7 +882,7 @@ def type_step():
         return
 
     typing_done = True
-    stop_clicks()  # MUST stop exactly when finished
+    stop_clicks()
 
     if after_segment_hook:
         cb = after_segment_hook
@@ -720,9 +892,29 @@ def type_step():
 
     show_buttons_for_scene()
 
-    # ambience trigger
     if scene and scene.get("end_sound") == "footstep":
         play_steps_loop()
+
+def play_text_segments_only(seg_list):
+    global segments, seg_i
+    segments = seg_list[:] if seg_list else [""]
+    seg_i = 0
+
+    def finish_all():
+        show_buttons_for_scene()
+        if scene and scene.get("end_sound") == "footstep":
+            play_steps_loop()
+
+    def write_next():
+        global seg_i
+        if seg_i >= len(segments):
+            finish_all()
+            return
+        part = segments[seg_i]
+        seg_i += 1
+        start_typewriter(part, on_done=lambda: root.after(HOOK_MS, write_next), clear_first=(seg_i == 1))
+
+    write_next()
 
 # ----------------------------
 # Segmented Scene Flow
@@ -733,7 +925,7 @@ def play_scene_segment_flow(img_list, seg_list):
     segments = seg_list[:] if seg_list else [""]
     seg_i = 0
 
-    paths = [p for p in (img_list or []) if p]
+    paths = list(img_list or [])
     while len(paths) < 3:
         paths.append(None)
     p1, p2, p3 = paths[:3]
@@ -745,6 +937,13 @@ def play_scene_segment_flow(img_list, seg_list):
 
     def write_next_segment():
         global seg_i
+
+        # ✅ 2. segment başlarken ayak sesi girsin (footstep_on_segment = 2)
+        fs_seg = scene.get("footstep_on_segment")
+        if isinstance(fs_seg, int) and fs_seg >= 1 and seg_i == (fs_seg - 1):
+            print("[AUDIO] footstep_on_segment TRIGGER:", fs_seg, "scene=", current)
+            play_steps_loop()
+
         if seg_i >= len(segments):
             finish_all()
             return
@@ -786,12 +985,14 @@ def play_scene_segment_flow(img_list, seg_list):
 # Scene logic
 # ----------------------------
 def load_scene():
-    global scene
+    global scene, _flicker_cfg
     stop_clicks()
-    scene = story[current]
+    stop_flicker()
 
-    # unlock ending if applicable
+    scene = story[current]
     unlock_if_ending(current)
+
+    _flicker_cfg = scene.get("flicker", None)
 
     if scene.get("final_check") is True:
         mask = 0
@@ -802,23 +1003,36 @@ def load_scene():
         root.after(450, lambda: go_to(end_id))
         return
 
+    if scene.get("layout") == "single":
+        set_canvas_hero_mode()
+
+        one = scene.get("image")
+        if not one:
+            imgs = scene.get("images", None)
+            if isinstance(imgs, (list, tuple)) and len(imgs) > 0:
+                one = imgs[0]
+
+        show_single_big_image(one)
+
+        seg_list = split_text_into_segments(scene.get("text", ""))
+        play_text_segments_only(seg_list)
+        return
+
+    set_canvas_triptych_mode()
+
     img_list = get_scene_images_list(scene)
     seg_list = split_text_into_segments(scene.get("text", ""))
 
     play_scene_segment_flow(img_list, seg_list)
 
 def show_buttons_for_scene():
-    # ending screen => Replay / Gallery / Exit
     if scene.get("ending") is True:
-        # Replay: restart from first scene in current language
         def _replay():
             stop_clicks()
             stop_steps_loop()
-            # keep music on
             if story and "S01_START" in story:
                 go_to("S01_START")
             else:
-                # fallback: go back to language selection
                 show_language_screen()
 
         choice_buttons[0].config(text="Replay", command=_replay, state="normal")
@@ -863,7 +1077,7 @@ def choose(choice_key):
     load_scene()
 
 # ----------------------------
-# Endings Gallery (NEW)
+# Endings Gallery
 # ----------------------------
 def show_gallery():
     win = tk.Toplevel(root)
@@ -1131,9 +1345,10 @@ class AudioSettingsOverlay:
 # Main screen show/hide helpers
 # ----------------------------
 def show_language_screen():
-    # reset story selection state visually
     stop_clicks()
     stop_steps_loop()
+    stop_flicker()
+    set_canvas_triptych_mode()
 
     bg_label.place(x=0, y=0, relwidth=1, relheight=1)
     bg_label.lower()
@@ -1245,7 +1460,6 @@ for _i in range(3):
     cf = tk.Frame(choices_row, bg=BG_COLOR)
     cf.pack(side="left", padx=64)
 
-    # NEW: border frame around the button
     border = tk.Frame(cf, bg=BORDER_OFF)
     border.pack(pady=(0, 10))
     choice_borders.append(border)
@@ -1261,14 +1475,13 @@ for _i in range(3):
         fg="white",
         activebackground="#24335c",
         activeforeground="white",
-        font=("Segoe UI Semibold", 16)   # ✅ sadece burası büyüdü (13 -> 18)
+        font=("Segoe UI Semibold", 16)
     )
-    btn.pack(padx=2, pady=2)  # padding = border thickness
+    btn.pack(padx=2, pady=2)
     choice_buttons.append(btn)
 
     bind_border_hover(btn, border)
 
-# Init buttons
 choice_buttons[0].config(text="", state="disabled")
 choice_buttons[1].config(text="", state="disabled")
 choice_buttons[2].config(text="", state="disabled")
@@ -1278,7 +1491,6 @@ audio_ui = AudioSettingsOverlay(root, x=18, y=18)
 card.lift()
 audio_ui.lift()
 
-# Ensure click assets ready early (optional)
 try:
     _ensure_click_assets()
 except:

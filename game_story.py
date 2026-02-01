@@ -76,11 +76,15 @@ STORY_EN = {
 
     "S03_PHONE_LOCK": {
         "text": (
-            "On the lock screen you see an old notification.\n"
-            "Not from today.\n\n"
+            "On the lock screen you see an old notification.||\n"
+            "Not from today.||\n"
             "Sender: Unknown."
         ),
-        "image": "images/s03_phone.png",
+    "images": [
+        "images/s03_phone.png",
+        "images/s03_2.png",
+        "images/s03_3.png",
+    ],
         "choices": {
             "1": ("Open the notification", "S04_CORRIDOR", ["O2"]),
             "2":  ("Turn the phone off", "S09_LOOP_ROOM", []),
@@ -90,11 +94,18 @@ STORY_EN = {
 
     "S04_CORRIDOR": {
         "text": (
-            "The corridor is empty.\n"
-            "The lights flicker softly.\n\n"
+            "The corridor is empty.||"
+            "The lights flicker softly.||"
             "The footsteps are gone."
         ),
-        "image": "images/s04_corridor.png",
+        "images": [
+        None,   # 1. görsel (L)
+        "images/s04_corridor.png",   # 2. görsel (C) -> flicker
+        None,   # 3. görsel (R) (istersen corridor da olabilir)
+    ],
+
+    # ✅ sadece bu sahnede, 2. görsel geldiğinde C slot flicker olsun
+    "flicker": {"index": 2, "slot": "C", "intensity": "strong", "until": "scene_end"},
         "choices": {
             "1": ("Head toward the camera room", "S07_CAMERA_DOOR", []),
             "2": ("Approach the cleaning cart", "S08_JANITOR", []),
@@ -1054,9 +1065,9 @@ STORY_TR = {
 
 "S01_START": {
     "text": (
-        "Saat 02:17.\n"
-        "Telefon ekranın açık ama bildirim yok.||\n"
-        "Koridordan düzenli ayak sesleri geliyor.||\n"
+        "Saat 02:17.||"
+        "Telefon ekranın açık ama bildirim yok.||"
+        "Koridordan düzenli ayak sesleri geliyor.||"
         "Çok düzenli."
     ),
     "images": [
@@ -1064,14 +1075,19 @@ STORY_TR = {
         "images/s01_2.png",
         "images/s01_3.png",
     ],
-    "end_sound": "footstep",
+
+    # ✅ 2. segment başlarken ayak sesi girer
+    "footstep_on_segment": 2,
+
+    # ❌ bunu kaldır (yoksa tekrar tetikleyebilir)
+    # "end_sound": "footstep",
+
     "choices": {
         "1": ("Kapıya yaklaş", "S02_CORRIDOR_ENTRY", []),
         "2": ("Telefonuna bak", "S03_PHONE_LOCK", []),
         "3": ("Uyumaya çalış", "END_E01", []),
     },
 },
-
 
 "S02_CORRIDOR_ENTRY": {
     "text": (
@@ -1095,11 +1111,10 @@ STORY_TR = {
 
 "S03_PHONE_LOCK": {
     "text": (
-        "Kilit ekranına bakıyorsun.\n"
-        "Eski bir bildirim var.||\n"
-        "Bugüne ait değil. Gönderen yok.||\n"
-        "Ekran bir an titriyor.\n"
-        "Sanki dokunmanı bekliyor."
+        "Kilit ekranına bakıyorsun.||"
+        "Eski bir bildirim var.||"
+        "Bugüne ait değil. Gönderen bilinmiyor.||\n"
+        
     ),
     "images": [
         "images/s03_phone.png",
@@ -1116,11 +1131,20 @@ STORY_TR = {
 
     "S04_CORRIDOR": {
         "text": (
-            "Koridor boş.\n"
-            "Işıklar hafifçe titriyor.\n\n"
+            "Koridor boş.||"
+            "Işıklar hafifçe titriyor.||"
             "Ayak sesleri kaybolmuş."
         ),
-        "image": "images/s04_corridor.png",
+        "images": [
+        None,   # 1. görsel (L)
+        "images/s04_corridor.png",   # 2. görsel (C) -> flicker
+        None,   # 3. görsel (R) (istersen corridor da olabilir)
+    ],
+
+    # ✅ sadece bu sahnede, 2. görsel geldiğinde C slot flicker olsun
+    "flicker": {"index": 2, "slot": "C", "intensity": "strong", "until": "scene_end"},
+
+
         "choices": {
             "1": ("Kamera odasına yönel", "S07_CAMERA_DOOR", []),
             "2": ("Temizlik arabasına yaklaş", "S08_JANITOR", []),
@@ -1129,6 +1153,7 @@ STORY_TR = {
     },
 
     "S05_FOOTPRINT": {
+        "layout": "single",
         "text": (
             "Yerde bir ayakkabı izi.\n\n"
             "Seninkiyle aynı."
