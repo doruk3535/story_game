@@ -98,11 +98,7 @@ STORY_EN = {
             "The lights flicker softly.||"
             "The footsteps are gone."
         ),
-        "images": [
-        None,   # 1. görsel (L)
-        "images/s04_corridor.png",   # 2. görsel (C) -> flicker
-        None,   # 3. görsel (R) (istersen corridor da olabilir)
-    ],
+        "images": [None, "images/s04_corridor.png", None],
 
     # ✅ sadece bu sahnede, 2. görsel geldiğinde C slot flicker olsun
     "flicker": {"index": 2, "slot": "C", "intensity": "strong", "until": "scene_end"},
@@ -129,13 +125,17 @@ STORY_EN = {
     "S06_GALLERY": {
         "text": (
             "Old photos fill your gallery.\n"
-            "You don’t remember most of them.\n\n"
-            "One stands out:\n"
-            "The corridor.\n"
-            "Night.\n"
-            "And you."
+            "You don’t remember most of them.||"
+            "One stands out:||"
+            "The corridor "
+            "night "
+            "and you."
         ),
-        "image": "images/s06_gallery.png",
+        "images": [
+        "images/s06_gallery.png",   # sol
+        "images/s06_2.png",   # orta
+        "images/s06_3.png",   # sağ
+    ],
         "choices": {
             "1": ("Study the photo", "S10_MEMORY_GLITCH", []),
             "2": ("Leave the gallery", "S04_CORRIDOR", []),
@@ -149,7 +149,7 @@ STORY_EN = {
             "A faint hum comes from inside.\n\n"
             "It isn’t locked."
         ),
-        "image": "images/s07_camera_door.png",
+        "images": [None, "images/s07_camera_door", None],
         "choices": {
             "1": ("Open the door", "S11_CAMERA_ROOM", ["O1"]),
             "2": ("Listen closely", "S12_CAMERA_HINT", []),
@@ -159,12 +159,16 @@ STORY_EN = {
 
     "S08_JANITOR": {
         "text": (
-            "Someone stands beside the cleaning cart.\n"
-            "The night janitor.\n\n"
+            "Someone stands beside the cleaning cart.||"
+            "The night janitor.||"
             "He frowns when he sees you.\n"
             "As if he knows you."
         ),
-        "image": "images/s08_janitor.png",
+    "images": [
+        "images/s08_janitor.png",
+        "images/s08_2.png",
+        "images/s08_3.png",
+    ],
         "choices": {
             "1": ("Talk to him", "S13_JANITOR_DIALOGUE", ["O3"]),
             "2": ("Walk away quietly", "S04_CORRIDOR", []),
@@ -1131,15 +1135,12 @@ STORY_TR = {
 
     "S04_CORRIDOR": {
         "text": (
-            "Koridor boş.||"
+            "Koridor sessiz.||"
             "Işıklar hafifçe titriyor.||"
-            "Ayak sesleri kaybolmuş."
+            "ilerde biri var ."
         ),
-        "images": [
-        None,   # 1. görsel (L)
-        "images/s04_corridor.png",   # 2. görsel (C) -> flicker
-        None,   # 3. görsel (R) (istersen corridor da olabilir)
-    ],
+        "images": [None, "images/s04_corridor.png", None],
+        
 
     # ✅ sadece bu sahnede, 2. görsel geldiğinde C slot flicker olsun
     "flicker": {"index": 2, "slot": "C", "intensity": "strong", "until": "scene_end"},
@@ -1147,7 +1148,7 @@ STORY_TR = {
 
         "choices": {
             "1": ("Kamera odasına yönel", "S07_CAMERA_DOOR", []),
-            "2": ("Temizlik arabasına yaklaş", "S08_JANITOR", []),
+            "2": ("ilerdeki silüete yönel", "S08_JANITOR", []),
             "3": ("Odaya geri dön", "S09_LOOP_ROOM", []),
         },
     },
@@ -1167,21 +1168,26 @@ STORY_TR = {
     },
 
     "S06_GALLERY": {
-        "text": (
-            "Galerinde eski fotoğraflar var.\n"
-            "Çoğunu hatırlamıyorsun.\n\n"
-            "Ama biri öne çıkıyor:\n"
-            "Koridor.\n"
-            "Gece.\n"
-            "Ve sen."
-        ),
-        "image": "images/s06_gallery.png",
-        "choices": {
-            "1": ("Fotoğrafı incele", "S10_MEMORY_GLITCH", []),
-            "2": ("Galeriden çık", "S04_CORRIDOR", []),
-            "3": ("Fotoğrafı sil", "S09_LOOP_ROOM", []),
-        },
+    "text": (
+        "Galerinde eski fotoğraflar var.\n"
+        "Çoğunu hatırlamıyorsun.||"
+        "Ama biri öne çıkıyor:||"
+        "Koridor,"
+        "Gece,"
+        "Ve sen."
+    ),
+    "images": [
+        "images/s06_gallery.png",   # sol
+        "images/s06_2.png",   # orta
+        "images/s06_3.png",   # sağ
+    ],
+    "choices": {
+        "1": ("Fotoğrafı incele", "S10_MEMORY_GLITCH", []),
+        "2": ("Galeriden çık", "S04_CORRIDOR", []),
+        "3": ("Fotoğrafı sil", "S09_LOOP_ROOM", []),
     },
+},
+
 
     "S07_CAMERA_DOOR": {
         "text": (
@@ -1189,7 +1195,7 @@ STORY_TR = {
             "İçeriden hafif bir uğultu geliyor.\n\n"
             "Kilitli değil."
         ),
-        "image": "images/s07_camera_door.png",
+        "images": [None, "images/s07_camera_door.png", None],
         "choices": {
             "1": ("Kapıyı aç", "S11_CAMERA_ROOM", ["O1"]),
             "2": ("Daha dikkatli dinle", "S12_CAMERA_HINT", []),
@@ -1197,45 +1203,59 @@ STORY_TR = {
         },
     },
 
-    "S08_JANITOR": {
-        "text": (
-            "Temizlik arabasının yanında biri duruyor.\n"
-            "Gece temizlikçisi.\n\n"
-            "Seni görünce kaşlarını çatıyor.\n"
-            "Sanki seni tanıyor."
-        ),
-        "image": "images/s08_janitor.png",
-        "choices": {
-            "1": ("Onunla konuş", "S13_JANITOR_DIALOGUE", ["O3"]),
-            "2": ("Sessizce uzaklaş", "S04_CORRIDOR", []),
-            "3": ("Koş", "S09_LOOP_ROOM", []),
-        },
+"S08_JANITOR": {
+    "text": (
+        "Temizlik arabasının yanında biri duruyor.||"
+        "Gece temizlikçisi.||"
+        "Seni görünce kaşlarını çatıyor.\n"
+        "Sanki seni tanıyor."
+    ),
+    "images": [
+        "images/s08_janitor.png",
+        "images/s08_2.png",
+        "images/s08_3.png",
+    ],
+    "choices": {
+        "1": ("Onunla konuş", "S13_JANITOR_DIALOGUE", ["O3"]),
+        "2": ("Sessizce uzaklaş", "S04_CORRIDOR", []),
+        "3": ("Koş", "S09_LOOP_ROOM", []),
     },
+},
 
-    "S09_LOOP_ROOM": {
-        "text": (
-            "Yatağındasın.\n"
-            "Aynı oda.\n\n"
-            "Yine 02:17.\n"
-            "Ama bu sefer fark ediyorsun."
-        ),
-        "image": "images/s09_loop_room.png",
-        "choices": {
-            "1": ("Bu daha önce oldu", "S10_MEMORY_GLITCH", []),
-            "2": ("Hızla ayağa kalk", "S04_CORRIDOR", []),
-            "3": ("Kıpırdama", "END_E02", []),
-        },
+
+"S09_LOOP_ROOM": {
+    "text": (
+        "Yatağındasın.\n"
+        "Aynı oda.\n\n"
+        "Yine 02:17.\n"
+        "Ama bu sefer fark ediyorsun neden zaman ilerlemiyo."
+    ),
+"images": [
+        None,
+        "images/s09_loop_room.png",
+        None,
+    ],
+    "choices": {
+        "1": ("Bu daha önce oldu", "S10_MEMORY_GLITCH", []),
+        "2": ("Hızla ayağa kalk", "S04_CORRIDOR", []),
+        "3": ("Kıpırdama", "END_E02", []),
     },
+},
+
 
     "S10_MEMORY_GLITCH": {
         "text": (
-            "Başın dönüyor.\n"
-            "Bir an her şey üst üste biniyor.\n\n"
+            "Başın dönüyor.||"
+            "Bir an her şey üst üste biniyor.||"
             "Koridor.\n"
             "Sesler.\n"
             "Bir tartışma."
         ),
-        "image": "images/s10_glitch.png",
+"images": [
+    "images/s10_glitch.png",     # SOL (blur loop bu olacak)
+    "images/s10_center.png",     # ORTA (sabit)
+    "images/s10_right.png",      # SAĞ (sabit)
+],
         "choices": {
             "1": ("Hatırayı zorla", "S14_PRE_CONFRONT", []),
             "2": ("Kendini durdur", "S09_LOOP_ROOM", []),
@@ -1243,27 +1263,24 @@ STORY_TR = {
         },
     },
 
-    "S11_CAMERA_ROOM": {
-        "text": (
-            "Kamera odasındasın.\n"
-            "Ekranlarda koridor görünüyor.\n\n"
-            "Bir ekranda...\n"
-            "Sen varsın."
-        ),
-        "image": "images/s11_camera_room.png",
+"S11_CAMERA_ROOM": {
+    "layout": "single_focus",
+    "image": "images/s11_camera_room.png",
+    "text": "Kamera odasındasın.||Ekranlar açık.||Koridorda biri var.",
         "choices": {
             "1": ("Kayıtları izle", "S15_CAMERA_TRUTH", []),
             "2": ("Ekranları kapat", "END_E03", []),
-            "3": ("Odayı terk et", "S04_CORRIDOR", []),
+            "3": ("Odadan çık(buraya tekrar koridorda olduğu nu ve farklı diyolgolara loop girdğini gösterebilirim )", "S04_CORRIDOR", []),
         },
     },
 
     "S12_CAMERA_HINT": {
-        "text": (
-            "Kapının önünde dinliyorsun.\n"
-            "İçeride kimse yok.\n\n"
-            "Ama ekranların ışığı yanıyor."
-        ),
+"text": (
+    "Gelip kapıyı dinliyor.\n"
+    "Ama yürüşüşü.\n\n"
+    "Durma ...\n"
+    "Sanki senmişsin  gibi."
+),
         "image": "images/s12_camera_hint.png",
         "choices": {
             "1": ("Kapıyı aç", "S11_CAMERA_ROOM", ["O1"]),
