@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
-# main_gui.py (02:17) - FINAL (INTEGRATED SINGLE_FOCUS HERO MODE)
-# - SFX = ambience loop + typewriter click  (single slider)
-# - Jump: S6 / 6 works (auto maps to S06_* first match)
-# - 1/2/3 choices, SPACE skip typing, J jump dialog
-# - ✅ FIX: Tek görselli sahnelerde görsel "geç geliyormuş" gibi davranmaz (slotuna yazıdan önce gelir)
-# - ✅ NEW: layout=="single_focus" (veya "single") sahneleri HERO canvas ile büyük gösterir (S11 için ideal)
-# - ✅ NEW: Hero mode canvas boyutu ekran bazlı büyütülür (küçük ortada kalma sorunu çözülür)
-# - ✅ NEW: S10'da sadece SOL slot (L) blur loop (titreme yok / dönme yok / zoom yok)
+# main_gui.py (02:17) - FINAL (INTEGRATED SINGLE_FOCUS HERO MODE) + CONDITIONAL 4TH CHOICE + INVENTORY
+# - ✅ Normalde 3 buton görünür
+# - ✅ 4. buton SADECE sahnede varsa görünür (choices veya choices_if ile)
+# - ✅ choices_if şartı yoksa 4. buton "🔒" kilitli görünür
+# - ✅ Inventory (Çanta) overlay: I_* item'ları gösterir
+# - ✅ GameState apply_effects aktif (flag + item)
+# - ✅ NEW: PAGEBREAK SYSTEM with "|||"
+#    - "||"  -> segment
+#    - "|||" -> page break: stop, wait SPACE, clear screen, continue
 
 import tkinter as tk
 import os
@@ -18,6 +19,94 @@ import struct
 import json
 import random
 import re
+
+# ============================
+# ✅ PAGEBREAK SYSTEM
+# ============================
+PAGEBREAK_TOKEN = "|||"
+waiting_pagebreak = False
+_pagebreak_continue_cb = None
+
+
+class GameState:
+    def __init__(self):
+        self.flags = set()   # F_* ve O* gibi
+        self.items = set()   # I_*
+
+    def apply_effects(self, effects):
+        if not effects:
+            return
+        for e in effects:
+            if not isinstance(e, str):
+                continue
+            e = e.strip()
+            if not e:
+                continue
+            if e.startswith("I_"):
+                self.items.add(e)
+            else:
+                self.flags.add(e)
+
+    def has(self, token: str) -> bool:
+        return (token in self.flags) or (token in self.items)
+
+
+# ✅ Global state (choices_if ve inventory buna bakacak)
+STATE = GameState()
+
+
+def resolve_choices(scene: dict, state: GameState) -> dict:
+    """
+    choices + choices_if (token varsa) birleştirir.
+    """
+    choices = dict(scene.get("choices", {}))
+    cond = scene.get("choices_if", {})
+    if isinstance(cond, dict):
+        for token, extra in cond.items():
+            if state.has(token) and isinstance(extra, dict):
+                choices.update(extra)
+    return choices
+
+
+def resolve_redirect(scene: dict, state: GameState, choice_key: str, choice_tuple):
+    """
+    redirect_if ile aynı choice_key için hedef sahneyi state'e göre değiştirebilirsin.
+    """
+    redirect_if = scene.get("redirect_if", {})
+    if not isinstance(redirect_if, dict):
+        return choice_tuple
+    for token, mapping in redirect_if.items():
+        if state.has(token) and isinstance(mapping, dict) and choice_key in mapping:
+            return mapping[choice_key]
+    return choice_tuple
+
+
+def compute_locked_choices(scene: dict, state: GameState) -> dict:
+    """
+    choices_if bloklarında, state şartı sağlanmadığı için eklenemeyen seçenekleri
+    "locked" olarak döndürür. Örn: {"4": "Kilitli kapıyı aç"}
+    """
+    locked = {}
+    cond = scene.get("choices_if", {})
+    if not isinstance(cond, dict):
+        return locked
+
+    base_choices = dict(scene.get("choices", {}))
+
+    for token, extra in cond.items():
+        if not isinstance(extra, dict):
+            continue
+        if not state.has(token):
+            for k, tup in extra.items():
+                if k in base_choices:
+                    continue
+                try:
+                    label = tup[0]
+                except:
+                    label = "Bilinmeyen"
+                locked[str(k)] = str(label)
+    return locked
+
 
 # ----------------------------
 # Optional: Pillow for smooth image resizing/animation (recommended)
@@ -70,6 +159,7 @@ unlocked_endings = set()
 PYGAME_OK = True
 pygame = None
 
+
 def _try_init_pygame(buffer_size: int):
     global pygame
     import pygame as _pg
@@ -77,6 +167,7 @@ def _try_init_pygame(buffer_size: int):
     _pg.init()
     _pg.mixer.init()
     pygame = _pg
+
 
 try:
     for buf in (256, 512, 1024):
@@ -109,10 +200,12 @@ sfx_loop_channel = None
 # scene bazlı sfx loop kontrolü (eski footsteps mantığı)
 sfx_started_this_scene = False
 
+
 def start_sfx_this_scene():
     global sfx_started_this_scene
     sfx_started_this_scene = True
     play_sfx_loop()
+
 
 def _music_candidates(path_mp3: str):
     cands = []
@@ -128,6 +221,7 @@ def _music_candidates(path_mp3: str):
             seen.add(p)
             out.append(p)
     return out
+
 
 def _sound_candidates(path_any: str):
     cands = []
@@ -145,6 +239,7 @@ def _sound_candidates(path_any: str):
             out.append(p)
     return out
 
+
 def _choose_ambience_file():
     # önce ambience_loop.* ara, yoksa footstep_loop.* fallback
     primary = _sound_candidates(AMBIENCE_PRIMARY)
@@ -157,6 +252,7 @@ def _choose_ambience_file():
             return p
     return None
 
+
 def set_music_volume_percent(percent: int):
     global music_volume, music_volume_percent
     music_volume_percent = max(0, min(100, int(percent)))
@@ -166,6 +262,7 @@ def set_music_volume_percent(percent: int):
             pygame.mixer.music.set_volume(music_volume)
         except Exception as e:
             print("[AUDIO] set music volume error:", e)
+
 
 def set_sfx_volume_percent(percent: int):
     """✅ Tek slider: ambience loop + tok click."""
@@ -189,6 +286,7 @@ def set_sfx_volume_percent(percent: int):
                 click_channel.set_volume(1.0)  # channel full, sound scaled
         except Exception as e:
             print("[AUDIO] set click volume error:", e)
+
 
 def play_music_loop():
     global music_playing
@@ -218,6 +316,7 @@ def play_music_loop():
         print("[AUDIO] MUSIC PLAY ERROR:", e)
         music_playing = False
 
+
 def stop_music():
     global music_playing
     if not PYGAME_OK:
@@ -228,6 +327,7 @@ def stop_music():
         print("[AUDIO] stop_music error:", e)
     music_playing = False
 
+
 def play_sfx_loop():
     global sfx_loop_playing, sfx_loop_sound, sfx_loop_channel
     if not PYGAME_OK:
@@ -237,7 +337,8 @@ def play_sfx_loop():
 
     chosen = _choose_ambience_file()
     if not chosen:
-        print("[AUDIO] AMBIENCE (SFX LOOP) MISSING. Tried:", _sound_candidates(AMBIENCE_PRIMARY) + _sound_candidates(AMBIENCE_FALLBACK))
+        print("[AUDIO] AMBIENCE (SFX LOOP) MISSING. Tried:",
+              _sound_candidates(AMBIENCE_PRIMARY) + _sound_candidates(AMBIENCE_FALLBACK))
         return
 
     try:
@@ -249,10 +350,12 @@ def play_sfx_loop():
         sfx_loop_channel.play(sfx_loop_sound, loops=-1)
 
         sfx_loop_playing = True
-        print("[AUDIO] Ambience (SFX) loop started:", os.path.basename(chosen), f"vol={sfx_volume_percent}%")
+        print("[AUDIO] Ambience (SFX) loop started:", os.path.basename(chosen),
+              f"vol={sfx_volume_percent}%")
     except Exception as e:
         print("[AUDIO] AMBIENCE LOOP ERROR:", e)
         sfx_loop_playing = False
+
 
 def stop_sfx_loop():
     global sfx_loop_playing, sfx_loop_channel
@@ -265,6 +368,7 @@ def stop_sfx_loop():
     except Exception as e:
         print("[AUDIO] stop_sfx_loop error:", e)
     sfx_loop_playing = False
+
 
 # ============================================================
 # CLICK ENGINE (NO FILE) - "TOK TOK" SOUND (SFX controlled)
@@ -280,6 +384,7 @@ _CLICK_WAV_BYTES = None
 
 click_sound = None
 click_channel = None
+
 
 def _build_click_wav_bytes_16bit(duration_ms=CLICK_DUR_MS, freq_hz=CLICK_FREQ_HZ, gain=CLICK_GAIN):
     sr = 44100
@@ -328,6 +433,7 @@ def _build_click_wav_bytes_16bit(duration_ms=CLICK_DUR_MS, freq_hz=CLICK_FREQ_HZ
         wf.writeframes(bytes(frames))
     return bio.getvalue()
 
+
 def _ensure_click_assets():
     global _CLICK_WAV_BYTES, click_sound, click_channel
     if _CLICK_WAV_BYTES is None:
@@ -345,6 +451,7 @@ def _ensure_click_assets():
             click_channel = None
             print("[AUDIO] Click init failed (pygame):", e)
 
+
 def stop_clicks():
     if PYGAME_OK and click_channel:
         try:
@@ -356,6 +463,7 @@ def stop_clicks():
             winsound.PlaySound(None, winsound.SND_PURGE)
         except:
             pass
+
 
 def soft_click():
     global _last_click_t
@@ -382,6 +490,7 @@ def soft_click():
         except:
             pass
 
+
 def stop_all_audio():
     stop_clicks()
     stop_sfx_loop()
@@ -391,6 +500,7 @@ def stop_all_audio():
             pygame.mixer.quit()
         except:
             pass
+
 
 # ----------------------------
 # Save / Load progress
@@ -408,6 +518,7 @@ def load_progress():
         print("[SAVE] load error:", e)
         unlocked_endings = set()
 
+
 def save_progress():
     try:
         data = {"unlocked_endings": sorted(list(unlocked_endings))}
@@ -415,6 +526,7 @@ def save_progress():
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print("[SAVE] save error:", e)
+
 
 def unlock_if_ending(scene_id: str):
     if not scene_id:
@@ -424,6 +536,7 @@ def unlock_if_ending(scene_id: str):
         if sid not in unlocked_endings:
             unlocked_endings.add(sid)
             save_progress()
+
 
 # ----------------------------
 # Global UI / Game state
@@ -504,13 +617,16 @@ story_label = None
 choices_row = None
 choice_buttons = []
 choice_borders = []
+choice_containers = []  # ✅ (butonların dış frame'i)
 audio_ui = None
+inv_ui = None  # ✅ Inventory overlay
 
 # Flicker
 _flicker_cfg = None
 _flicker_running = False
 _flicker_job = None
 _flicker_slot = None
+
 
 def stop_flicker():
     global _flicker_running, _flicker_job, _flicker_slot
@@ -523,6 +639,7 @@ def stop_flicker():
             pass
     _flicker_job = None
 
+
 def _intensity_params(intensity: str):
     intensity = (intensity or "").lower().strip()
     if intensity == "strong":
@@ -531,8 +648,10 @@ def _intensity_params(intensity: str):
         return {"min_ms": 60, "max_ms": 140, "bright": 1.22, "dark": 0.70, "blink_chance": 0.15}
     return {"min_ms": 70, "max_ms": 170, "bright": 1.15, "dark": 0.80, "blink_chance": 0.10}
 
+
 def abs_path(p: str) -> str:
     return p if os.path.isabs(p) else os.path.join(BASE_DIR, p)
+
 
 def _build_flicker_frames_fit(img_path: str, w: int, h: int, intensity: str):
     if not (PIL_OK and img_path and os.path.exists(abs_path(img_path))):
@@ -561,6 +680,7 @@ def _build_flicker_frames_fit(img_path: str, w: int, h: int, intensity: str):
     except Exception as e:
         print("[FLICKER] build error:", e)
         return None
+
 
 def try_start_flicker(slot_key: str, img_path: str):
     global _flicker_cfg, _flicker_running, _flicker_job, _flicker_slot
@@ -621,6 +741,7 @@ def try_start_flicker(slot_key: str, img_path: str):
 
     step()
 
+
 # ============================
 # DIZZY / BLUR EFFECT (NO SHAKE)
 # ============================
@@ -631,6 +752,7 @@ _dizzy_slot = None
 
 _hero_dizzy_running = False
 _hero_dizzy_job = None
+
 
 def stop_dizzy():
     global _dizzy_running, _dizzy_job, _dizzy_slot, _hero_dizzy_running, _hero_dizzy_job
@@ -651,11 +773,12 @@ def stop_dizzy():
             pass
     _hero_dizzy_job = None
 
+
 def _dizzy_params(intensity: str, mode: str):
     """
     mode:
       - "blur"  : sadece blur pulse (titreme yok)
-      - "dizzy" : rotate/zoom (istersen ileride kullanırsın)
+      - "dizzy" : rotate/zoom
     """
     intensity = (intensity or "").lower().strip()
     mode = (mode or "blur").lower().strip()
@@ -672,6 +795,7 @@ def _dizzy_params(intensity: str, mode: str):
     if intensity == "medium":
         return {"amp_deg": 7.0, "speed_ms": 45, "blur": 1.1, "zoom": 1.04, "frames": 22}
     return {"amp_deg": 5.0, "speed_ms": 55, "blur": 0.8, "zoom": 1.03, "frames": 20}
+
 
 def _build_blur_frames_fit(img_path: str, target_w: int, target_h: int, intensity: str):
     if not (PIL_OK and img_path and os.path.exists(abs_path(img_path))):
@@ -710,6 +834,7 @@ def _build_blur_frames_fit(img_path: str, target_w: int, target_h: int, intensit
     except Exception as e:
         print("[BLUR] build error:", e)
         return None
+
 
 def _build_dizzy_frames_fit(img_path: str, target_w: int, target_h: int, intensity: str, mode: str):
     mode = (mode or "blur").lower().strip()
@@ -762,6 +887,7 @@ def _build_dizzy_frames_fit(img_path: str, target_w: int, target_h: int, intensi
         print("[DIZZY] build error:", e)
         return None
 
+
 def try_start_dizzy(slot_key: str, img_path: str):
     global _dizzy_cfg, _dizzy_running, _dizzy_job, _dizzy_slot
     if not _dizzy_cfg or _dizzy_running:
@@ -803,6 +929,7 @@ def try_start_dizzy(slot_key: str, img_path: str):
 
     step(0)
 
+
 def try_start_dizzy_hero(img_path: str):
     global _dizzy_cfg, _hero_dizzy_running, _hero_dizzy_job, hero_item_id
     if not _dizzy_cfg or _hero_dizzy_running or not hero_item_id:
@@ -836,6 +963,7 @@ def try_start_dizzy_hero(img_path: str):
         _hero_dizzy_job = root.after(speed_ms, lambda: step(k + 1))
 
     step(0)
+
 
 def load_photo_fit(path, target_w, target_h, cache_dict):
     if not path:
@@ -877,6 +1005,7 @@ def load_photo_fit(path, target_w, target_h, cache_dict):
         cache_dict[key] = None
         return None
 
+
 def get_scene_images_list(scn: dict):
     if not scn:
         return []
@@ -888,27 +1017,64 @@ def get_scene_images_list(scn: dict):
         return list(imgs)
     return []
 
+
 def split_text_into_segments(txt: str):
+    """
+    ✅ "||" splits into segments
+    ✅ "|||" creates a PAGEBREAK_TOKEN segment
+    """
     if not txt:
         return [""]
-    if "||" in txt:
-        parts = [p.strip() for p in txt.split("||")]
-        parts = [p for p in parts if p != ""]
-        return parts if parts else [""]
-    return [txt]
+
+    s = str(txt)
+
+    out = []
+    i = 0
+    buf = []
+    n = len(s)
+
+    def flush_buf():
+        nonlocal buf
+        chunk = "".join(buf).strip()
+        buf = []
+        if chunk:
+            # chunk içinde "||" kalmış olabilir -> tekrar parçala
+            parts = [p.strip() for p in chunk.split("||") if p.strip()]
+            out.extend(parts if parts else [])
+        return
+
+    while i < n:
+        # "|||" yakala
+        if s.startswith("|||", i):
+            flush_buf()
+            out.append(PAGEBREAK_TOKEN)
+            i += 3
+            continue
+        # "||" yakala (segment separator)
+        if s.startswith("||", i):
+            flush_buf()
+            i += 2
+            continue
+
+        buf.append(s[i])
+        i += 1
+
+    flush_buf()
+
+    return out if out else [""]
+
 
 # ----------------------------
 # Canvas modes
 # ----------------------------
 def _calc_hero_size():
-    """Ekrana göre hero canvas ölçüsü (S11 gibi tek görsel sahnelerde büyük görünmesi için)."""
+    """Ekrana göre hero canvas ölçüsü."""
     global HERO_W, HERO_H
     sw = root.winfo_screenwidth()
     sh = root.winfo_screenheight()
-    # geniş: ekranın ~%92'si, ama çok aşırı olmasın
     HERO_W = max(900, min(sw - 80, 1700))
-    # yükseklik: ekranın ~%62'si
     HERO_H = max(520, min(int(sh * 0.62), 720))
+
 
 def set_canvas_triptych_mode():
     try:
@@ -917,8 +1083,8 @@ def set_canvas_triptych_mode():
     except:
         pass
 
+
 def set_canvas_hero_mode(custom_w=None, custom_h=None):
-    """✅ single_focus için canvas büyütme."""
     if HERO_W is None or HERO_H is None:
         _calc_hero_size()
 
@@ -931,6 +1097,7 @@ def set_canvas_hero_mode(custom_w=None, custom_h=None):
         return w, h
     except:
         return w, h
+
 
 # ----------------------------
 # Carousel helpers
@@ -945,6 +1112,7 @@ def carousel_clear():
     hero_item_id = None
     hero_img_path = None
 
+
 def place_slot(slot_key, photo, x, y):
     if photo is None:
         return
@@ -955,9 +1123,11 @@ def place_slot(slot_key, photo, x, y):
         carousel_canvas.coords(slot_items[slot_key], x, y)
     slot_images[slot_key] = photo
 
+
 def show_logo_on_canvas():
     carousel_clear()
-    logo = load_photo_fit("images/logo.png", int(carousel_canvas.cget("width")), int(carousel_canvas.cget("height")), _img_cache)
+    logo = load_photo_fit("images/logo.png", int(carousel_canvas.cget("width")),
+                          int(carousel_canvas.cget("height")), _img_cache)
     if logo:
         w = int(carousel_canvas.cget("width"))
         h = int(carousel_canvas.cget("height"))
@@ -966,10 +1136,11 @@ def show_logo_on_canvas():
     else:
         w = int(carousel_canvas.cget("width"))
         h = int(carousel_canvas.cget("height"))
-        carousel_canvas.create_text(w // 2, h // 2, text="LOGO LOAD ERROR", fill="white", font=("Segoe UI Semibold", 18, "bold"))
+        carousel_canvas.create_text(w // 2, h // 2, text="LOGO LOAD ERROR",
+                                   fill="white", font=("Segoe UI Semibold", 18, "bold"))
+
 
 def show_single_big_image(img_path: str):
-    """✅ HERO canvas içine tek görseli büyük basar."""
     global hero_item_id, hero_img_path
     carousel_clear()
 
@@ -977,7 +1148,8 @@ def show_single_big_image(img_path: str):
     h = int(carousel_canvas.cget("height"))
 
     if not img_path:
-        carousel_canvas.create_text(w // 2, h // 2, text="NO IMAGE", fill="white", font=("Segoe UI Semibold", 18, "bold"))
+        carousel_canvas.create_text(w // 2, h // 2, text="NO IMAGE",
+                                   fill="white", font=("Segoe UI Semibold", 18, "bold"))
         return
 
     hero_img_path = img_path
@@ -987,7 +1159,9 @@ def show_single_big_image(img_path: str):
         tmp_refs["hero_img"] = photo
         try_start_dizzy_hero(img_path)
     else:
-        carousel_canvas.create_text(w // 2, h // 2, text="IMAGE LOAD ERROR", fill="white", font=("Segoe UI Semibold", 18, "bold"))
+        carousel_canvas.create_text(w // 2, h // 2, text="IMAGE LOAD ERROR",
+                                   fill="white", font=("Segoe UI Semibold", 18, "bold"))
+
 
 def pop_in_to_slot(slot_key, path, x, y, duration_ms=POP_MS, frames=POP_FRAMES, on_done=None):
     if not path:
@@ -1073,9 +1247,11 @@ def pop_in_to_slot(slot_key, path, x, y, duration_ms=POP_MS, frames=POP_FRAMES, 
         if on_done:
             on_done()
 
+
 # Button hover
 BORDER_OFF = "#2a3a6a"
 BORDER_ON = "#4f6cff"
+
 
 def bind_border_hover(btn, border_frame):
     def on(_e=None):
@@ -1083,18 +1259,22 @@ def bind_border_hover(btn, border_frame):
             border_frame.config(bg=BORDER_ON)
         except:
             pass
+
     def off(_e=None):
         try:
             border_frame.config(bg=BORDER_OFF)
         except:
             pass
+
     btn.bind("<Enter>", on)
     btn.bind("<Leave>", off)
+
 
 # Navigation
 def disable_choices():
     for b in choice_buttons:
         b.config(state="disabled")
+
 
 def go_to(scene_id):
     global current
@@ -1104,6 +1284,7 @@ def go_to(scene_id):
         load_scene()
     else:
         print("[GO_TO ERROR] missing scene:", scene_id)
+
 
 # Typewriter
 def start_typewriter(text, on_done=None, clear_first=True):
@@ -1126,6 +1307,7 @@ def start_typewriter(text, on_done=None, clear_first=True):
 
     disable_choices()
     type_step()
+
 
 def type_step():
     global index, click_count, typing_done, after_segment_hook
@@ -1154,6 +1336,36 @@ def type_step():
 
     show_buttons_for_scene()
 
+
+# ============================================================
+# ✅ PAGEBREAK WAIT / CONTINUE
+# ============================================================
+def _enter_pagebreak(wait_continue_cb):
+    """
+    Metinde '|||' gelince buraya düşer:
+    - yazı durur
+    - SPACE beklenir
+    - butonlar gösterilmez
+    """
+    global waiting_pagebreak, _pagebreak_continue_cb
+    waiting_pagebreak = True
+    _pagebreak_continue_cb = wait_continue_cb
+    disable_choices()
+    # İstersen küçük bir ipucu satırı koy:
+    # story_label.config(text=story_label.cget("text") + "\n\n[SPACE] Devam")
+
+
+def _continue_after_pagebreak():
+    global waiting_pagebreak, _pagebreak_continue_cb
+    waiting_pagebreak = False
+    cb = _pagebreak_continue_cb
+    _pagebreak_continue_cb = None
+    # ekranı sıfırla
+    story_label.config(text="")
+    if cb:
+        cb()
+
+
 def play_text_segments_only(seg_list):
     global segments, seg_i
     segments = seg_list[:] if seg_list else [""]
@@ -1173,15 +1385,20 @@ def play_text_segments_only(seg_list):
         if seg_i >= len(segments):
             finish_all()
             return
+
         part = segments[seg_i]
         seg_i += 1
+
+        # ✅ PAGEBREAK token
+        if part == PAGEBREAK_TOKEN:
+            _enter_pagebreak(lambda: root.after(HOOK_MS, write_next))
+            return
+
         start_typewriter(part, on_done=lambda: root.after(HOOK_MS, write_next), clear_first=(seg_i == 1))
 
     write_next()
 
-# ============================================================
-# ✅ FIXED SEGMENT FLOW
-# ============================================================
+
 def play_scene_segment_flow(img_list, seg_list):
     global segments, seg_i
     segments = seg_list[:] if seg_list else [""]
@@ -1192,7 +1409,6 @@ def play_scene_segment_flow(img_list, seg_list):
         paths.append(None)
     p1, p2, p3 = paths[:3]
 
-    # ✅ Tek görselli sahneler (triptych içinde tek slot seç)
     pre_slot = None
     pre_path = None
 
@@ -1230,6 +1446,11 @@ def play_scene_segment_flow(img_list, seg_list):
         text_part = segments[seg_i]
         seg_i += 1
 
+        # ✅ PAGEBREAK token
+        if text_part == PAGEBREAK_TOKEN:
+            _enter_pagebreak(lambda: root.after(HOOK_MS, write_next_segment))
+            return
+
         def after_this_segment():
             if seg_i == 1:
                 if p2:
@@ -1259,16 +1480,15 @@ def play_scene_segment_flow(img_list, seg_list):
     else:
         root.after(POP_DELAY_12, write_next_segment)
 
-# Scene logic
+
 def _is_single_focus_layout(scn: dict) -> bool:
-    """layout single/single_focus/hero gibi varyantları kabul et."""
     lay = str(scn.get("layout", "") or "").strip().lower()
     if lay in ("single", "single_focus", "hero", "singlefocus", "focus"):
         return True
-    # ekstra: eğer sahne açıkça single istiyorsa
     if scn.get("single_focus") is True:
         return True
     return False
+
 
 def load_scene():
     global scene, _flicker_cfg, sfx_started_this_scene, _dizzy_cfg
@@ -1285,7 +1505,6 @@ def load_scene():
     _flicker_cfg = scene.get("flicker", None)
     _dizzy_cfg = scene.get("dizzy", None)
 
-    # ✅ S10 otomatik: sadece SOL slot blur loop (titreme yok)
     if str(current).upper().startswith("S10") and _dizzy_cfg is None:
         _dizzy_cfg = {"slot": "L", "mode": "blur", "intensity": "medium", "speed_ms": 45}
 
@@ -1300,7 +1519,6 @@ def load_scene():
 
     # ✅ SINGLE FOCUS (HERO) MODE
     if _is_single_focus_layout(scene):
-        # scene özel boyut istiyorsa (opsiyonel)
         hero_cfg = scene.get("hero_canvas", None)
         cw = None
         ch = None
@@ -1316,12 +1534,16 @@ def load_scene():
             if isinstance(imgs, (list, tuple)) and len(imgs) > 0:
                 one = imgs[0]
 
-        # ✅ Görsel önce gelir
         show_single_big_image(one)
 
-        # sonra yazı segmentleri
         seg_list = split_text_into_segments(scene.get("text", ""))
         play_text_segments_only(seg_list)
+
+        try:
+            if inv_ui:
+                inv_ui.refresh()
+        except:
+            pass
         return
 
     # TRIPTYCH MODE
@@ -1330,6 +1552,16 @@ def load_scene():
     seg_list = split_text_into_segments(scene.get("text", ""))
     play_scene_segment_flow(img_list, seg_list)
 
+    try:
+        if inv_ui:
+            inv_ui.refresh()
+    except:
+        pass
+
+
+# ============================================================
+# ✅ 3 BUTON + (SAHNEDE VARSA) 4. BUTON + 🔒 LOCKED
+# ============================================================
 def show_buttons_for_scene():
     if scene.get("ending") is True:
         def _replay():
@@ -1344,15 +1576,45 @@ def show_buttons_for_scene():
         choice_buttons[0].config(text="Replay", command=_replay, state="normal")
         choice_buttons[1].config(text="Gallery", command=show_gallery, state="normal")
         choice_buttons[2].config(text="Exit", command=on_escape, state="normal")
+        choice_buttons[3].config(text="", state="disabled")
+        try:
+            choice_containers[3].pack_forget()
+        except:
+            pass
         return
 
-    choices = scene.get("choices", {})
-    for i, key in enumerate(["1", "2", "3"]):
-        if key in choices:
-            txt = choices[key][0]
-            choice_buttons[i].config(text=txt, command=lambda k=key: choose(k), state="normal")
+    resolved = resolve_choices(scene, STATE)
+    locked = compute_locked_choices(scene, STATE)
+
+    keys = ["1", "2", "3", "4"]
+    show_4 = ("4" in resolved) or ("4" in locked)
+
+    if show_4:
+        try:
+            if not choice_containers[3].winfo_ismapped():
+                choice_containers[3].pack(side="left", padx=44)
+        except:
+            pass
+    else:
+        try:
+            choice_containers[3].pack_forget()
+        except:
+            pass
+
+    for i, k in enumerate(keys):
+        if k == "4" and not show_4:
+            choice_buttons[i].config(text="", state="disabled")
+            continue
+
+        if k in resolved:
+            txt = resolved[k][0]
+            choice_buttons[i].config(text=txt, command=lambda kk=k: choose(kk), state="normal")
+        elif k in locked:
+            txt = locked[k]
+            choice_buttons[i].config(text=f"🔒 {txt}", command=lambda: None, state="disabled")
         else:
             choice_buttons[i].config(text="", state="disabled")
+
 
 def choose(choice_key):
     global current
@@ -1364,15 +1626,24 @@ def choose(choice_key):
         root.destroy()
         return
 
-    choices = scene.get("choices", {})
+    # ✅ resolve choices (choices + choices_if)
+    choices = resolve_choices(scene, STATE)
     if choice_key not in choices:
         return
 
     choice = choices[choice_key]
-    flags = choice[2] if (isinstance(choice, (list, tuple)) and len(choice) >= 3) else []
-    for f in flags:
+
+    # ✅ apply effects (flags/items)
+    effects = choice[2] if (isinstance(choice, (list, tuple)) and len(choice) >= 3) else []
+    STATE.apply_effects(effects)
+
+    # ✅ backward compatible events O1.. for your final endings mask system
+    for f in effects:
         if f in events:
             events[f] = True
+
+    # ✅ redirect_if support
+    choice = resolve_redirect(scene, STATE, choice_key, choice)
 
     next_id = choice[1]
     if next_id not in story:
@@ -1381,6 +1652,13 @@ def choose(choice_key):
 
     current = next_id
     load_scene()
+
+    try:
+        if inv_ui:
+            inv_ui.refresh()
+    except:
+        pass
+
 
 # Endings Gallery
 def show_gallery():
@@ -1430,10 +1708,15 @@ def show_gallery():
               bd=0, padx=18, pady=8, activebackground="#24335c", activeforeground="white",
               font=("Segoe UI Semibold", 11, "bold")).pack()
 
+
 # Language selection
 def reset_events():
     for k in events:
         events[k] = False
+    # ✅ state reset
+    STATE.flags.clear()
+    STATE.items.clear()
+
 
 def set_english():
     global story, current, current_lang
@@ -1443,6 +1726,7 @@ def set_english():
     current = "S01_START" if "S01_START" in story else "start"
     load_scene()
 
+
 def set_turkish():
     global story, current, current_lang
     reset_events()
@@ -1451,6 +1735,7 @@ def set_turkish():
     current = "S01_START" if "S01_START" in story else "start"
     load_scene()
 
+
 def on_escape(e=None):
     stop_all_audio()
     stop_dizzy()
@@ -1458,6 +1743,7 @@ def on_escape(e=None):
         root.destroy()
     except:
         pass
+
 
 # ============================================================
 # Audio Settings Overlay (music + SFX)
@@ -1629,6 +1915,99 @@ class AudioSettingsOverlay:
         else:
             self.sfx_scale.set(self.last_nonzero_sfx if self.last_nonzero_sfx > 0 else 80)
 
+
+# ============================================================
+# ✅ Inventory Overlay (Çanta)
+# ============================================================
+class InventoryOverlay:
+    def __init__(self, master, x=90, y=18):
+        self.master = master
+        self.x = x
+        self.y = y
+        self.opened = False
+
+        self.btn = tk.Button(
+            master, text="Çanta",
+            command=self.toggle,
+            bg="#0f1730", fg="#cfd6ff", bd=0,
+            activebackground="#24335c", activeforeground="white",
+            font=("Segoe UI Semibold", 11, "bold")
+        )
+        self.btn.place(x=self.x, y=self.y, width=80, height=40)
+
+        self.panel = tk.Frame(master, bg=BG_COLOR, bd=0, highlightthickness=0)
+        self.box = tk.Frame(self.panel, bg="#0f1730", bd=2, highlightbackground="#2a3a6a", highlightthickness=2)
+        self.box.pack(padx=0, pady=0)
+
+        self.title = tk.Label(self.box, text="ENVANTER", bg="#0f1730", fg="white",
+                              font=("Segoe UI Semibold", 11, "bold"))
+        self.title.pack(padx=14, pady=(10, 6), anchor="w")
+
+        self.list_lbl = tk.Label(self.box, text="", bg="#0f1730", fg="#cfd6ff",
+                                 justify="left", font=("Consolas", 11))
+        self.list_lbl.pack(padx=14, pady=(0, 12), anchor="w")
+
+        self.master.bind("<Button-1>", self._global_click, add="+")
+
+    def _global_click(self, e):
+        if not self.opened:
+            return
+        wx, wy = e.x_root, e.y_root
+
+        bx1 = self.btn.winfo_rootx()
+        by1 = self.btn.winfo_rooty()
+        bx2 = bx1 + self.btn.winfo_width()
+        by2 = by1 + self.btn.winfo_height()
+
+        px1 = self.panel.winfo_rootx()
+        py1 = self.panel.winfo_rooty()
+        px2 = px1 + self.panel.winfo_width()
+        py2 = py1 + self.panel.winfo_height()
+
+        inside_btn = (bx1 <= wx <= bx2 and by1 <= wy <= by2)
+        inside_panel = (px1 <= wx <= px2 and py1 <= wy <= py2)
+
+        if not inside_btn and not inside_panel:
+            self.close()
+
+    def refresh(self):
+        items = sorted(list(STATE.items))
+        if not items:
+            text = "Boş."
+        else:
+            pretty = [it.replace("I_", "") for it in items]
+            text = "\n".join([f"• {p}" for p in pretty])
+        self.list_lbl.config(text=text)
+
+    def open(self):
+        if self.opened:
+            return
+        self.opened = True
+        self.refresh()
+        self.panel.place(x=self.x, y=self.y + 46)
+        self.box.pack()
+
+    def close(self):
+        if not self.opened:
+            return
+        self.opened = False
+        self.panel.place_forget()
+
+    def toggle(self):
+        self.close() if self.opened else self.open()
+
+    def lift(self):
+        try:
+            self.btn.tkraise()
+        except:
+            pass
+        if self.opened:
+            try:
+                self.panel.tkraise()
+            except:
+                pass
+
+
 # ----------------------------
 # Main screen show/hide helpers
 # ----------------------------
@@ -1650,8 +2029,18 @@ def show_language_screen():
     choice_buttons[0].config(text="English", command=set_english, state="normal")
     choice_buttons[1].config(text="Türkçe", command=set_turkish, state="normal")
     choice_buttons[2].config(text="", state="disabled")
+    choice_buttons[3].config(text="", state="disabled")
+    try:
+        choice_containers[3].pack_forget()
+    except:
+        pass
 
     audio_ui.lift()
+    try:
+        inv_ui.lift()
+    except:
+        pass
+
 
 def start_main_after_splash(splash):
     try:
@@ -1665,6 +2054,7 @@ def start_main_after_splash(splash):
 
     show_language_screen()
     play_music_loop()
+
 
 def show_splash_logo(duration_ms=1400):
     splash = tk.Toplevel(root)
@@ -1690,6 +2080,7 @@ def show_splash_logo(duration_ms=1400):
 
     splash.after(duration_ms, lambda: start_main_after_splash(splash))
 
+
 # ============================================================
 # DEV TOOLS: Jump, Key Choices, Skip Typing
 # ============================================================
@@ -1705,6 +2096,7 @@ def normalize_jump_input(raw: str):
         n = int(m.group(1))
         return f"S{n:02d}"
     return s
+
 
 def resolve_scene_id(query: str):
     if not story:
@@ -1727,6 +2119,7 @@ def resolve_scene_id(query: str):
             return matches2[0]
 
     return None
+
 
 def open_jump_dialog(e=None):
     if story is None:
@@ -1786,10 +2179,12 @@ def open_jump_dialog(e=None):
               activebackground="#24335c", activeforeground="white",
               font=("Segoe UI Semibold", 10, "bold")).pack(side="left", padx=8)
 
+
 def key_choice(e):
     k = e.keysym
-    if k in ("1", "2", "3"):
+    if k in ("1", "2", "3", "4"):
         choose(k)
+
 
 def skip_typing(e=None):
     global index, typing_done, after_segment_hook
@@ -1808,6 +2203,20 @@ def skip_typing(e=None):
     else:
         show_buttons_for_scene()
 
+
+def on_space(e=None):
+    """
+    ✅ SPACE behavior:
+    - typing sırasında: skip_typing
+    - pagebreak bekliyorsa: clear + continue
+    """
+    global waiting_pagebreak
+    if waiting_pagebreak:
+        _continue_after_pagebreak()
+        return
+    skip_typing(e)
+
+
 # ----------------------------
 # Build UI
 # ----------------------------
@@ -1824,7 +2233,8 @@ root.bind("J", open_jump_dialog)
 root.bind("1", key_choice)
 root.bind("2", key_choice)
 root.bind("3", key_choice)
-root.bind("<space>", skip_typing)
+root.bind("4", key_choice)
+root.bind("<space>", on_space)
 
 load_progress()
 
@@ -1862,10 +2272,12 @@ choices_row.pack(pady=(0, 18))
 
 choice_buttons = []
 choice_borders = []
+choice_containers = []
 
-for _i in range(3):
+for _i in range(4):
     cf = tk.Frame(choices_row, bg=BG_COLOR)
-    cf.pack(side="left", padx=64)
+    cf.pack(side="left", padx=44)
+    choice_containers.append(cf)
 
     border = tk.Frame(cf, bg=BORDER_OFF)
     border.pack(pady=(0, 10))
@@ -1882,10 +2294,14 @@ for _i in range(3):
 choice_buttons[0].config(text="", state="disabled")
 choice_buttons[1].config(text="", state="disabled")
 choice_buttons[2].config(text="", state="disabled")
+choice_buttons[3].config(text="", state="disabled")
 
 audio_ui = AudioSettingsOverlay(root, x=18, y=18)
+inv_ui = InventoryOverlay(root, x=90, y=18)
+
 card.lift()
 audio_ui.lift()
+inv_ui.lift()
 
 try:
     _ensure_click_assets()
