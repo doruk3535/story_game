@@ -11,7 +11,7 @@
 
 import tkinter as tk
 import os
-import math
+import math 
 import time
 import io
 import wave
@@ -621,6 +621,10 @@ choice_containers = []  # ✅ (butonların dış frame'i)
 audio_ui = None
 inv_ui = None  # ✅ Inventory overlay
 
+
+# Main Menu logo-only overlay
+menu_logo_label = None
+menu_logo_img = None
 # Flicker
 _flicker_cfg = None
 _flicker_running = False
@@ -1038,19 +1042,16 @@ def split_text_into_segments(txt: str):
         chunk = "".join(buf).strip()
         buf = []
         if chunk:
-            # chunk içinde "||" kalmış olabilir -> tekrar parçala
             parts = [p.strip() for p in chunk.split("||") if p.strip()]
             out.extend(parts if parts else [])
         return
 
     while i < n:
-        # "|||" yakala
         if s.startswith("|||", i):
             flush_buf()
             out.append(PAGEBREAK_TOKEN)
             i += 3
             continue
-        # "||" yakala (segment separator)
         if s.startswith("||", i):
             flush_buf()
             i += 2
@@ -1341,18 +1342,10 @@ def type_step():
 # ✅ PAGEBREAK WAIT / CONTINUE
 # ============================================================
 def _enter_pagebreak(wait_continue_cb):
-    """
-    Metinde '|||' gelince buraya düşer:
-    - yazı durur
-    - SPACE beklenir
-    - butonlar gösterilmez
-    """
     global waiting_pagebreak, _pagebreak_continue_cb
     waiting_pagebreak = True
     _pagebreak_continue_cb = wait_continue_cb
     disable_choices()
-    # İstersen küçük bir ipucu satırı koy:
-    # story_label.config(text=story_label.cget("text") + "\n\n[SPACE] Devam")
 
 
 def _continue_after_pagebreak():
@@ -1360,7 +1353,6 @@ def _continue_after_pagebreak():
     waiting_pagebreak = False
     cb = _pagebreak_continue_cb
     _pagebreak_continue_cb = None
-    # ekranı sıfırla
     story_label.config(text="")
     if cb:
         cb()
@@ -1389,7 +1381,6 @@ def play_text_segments_only(seg_list):
         part = segments[seg_i]
         seg_i += 1
 
-        # ✅ PAGEBREAK token
         if part == PAGEBREAK_TOKEN:
             _enter_pagebreak(lambda: root.after(HOOK_MS, write_next))
             return
@@ -1446,7 +1437,6 @@ def play_scene_segment_flow(img_list, seg_list):
         text_part = segments[seg_i]
         seg_i += 1
 
-        # ✅ PAGEBREAK token
         if text_part == PAGEBREAK_TOKEN:
             _enter_pagebreak(lambda: root.after(HOOK_MS, write_next_segment))
             return
@@ -1517,7 +1507,6 @@ def load_scene():
         root.after(450, lambda: go_to(end_id))
         return
 
-    # ✅ SINGLE FOCUS (HERO) MODE
     if _is_single_focus_layout(scene):
         hero_cfg = scene.get("hero_canvas", None)
         cw = None
@@ -1546,7 +1535,6 @@ def load_scene():
             pass
         return
 
-    # TRIPTYCH MODE
     set_canvas_triptych_mode()
     img_list = get_scene_images_list(scene)
     seg_list = split_text_into_segments(scene.get("text", ""))
@@ -1626,23 +1614,19 @@ def choose(choice_key):
         root.destroy()
         return
 
-    # ✅ resolve choices (choices + choices_if)
     choices = resolve_choices(scene, STATE)
     if choice_key not in choices:
         return
 
     choice = choices[choice_key]
 
-    # ✅ apply effects (flags/items)
     effects = choice[2] if (isinstance(choice, (list, tuple)) and len(choice) >= 3) else []
     STATE.apply_effects(effects)
 
-    # ✅ backward compatible events O1.. for your final endings mask system
     for f in effects:
         if f in events:
             events[f] = True
 
-    # ✅ redirect_if support
     choice = resolve_redirect(scene, STATE, choice_key, choice)
 
     next_id = choice[1]
@@ -1713,7 +1697,6 @@ def show_gallery():
 def reset_events():
     for k in events:
         events[k] = False
-    # ✅ state reset
     STATE.flags.clear()
     STATE.items.clear()
 
@@ -1724,6 +1707,7 @@ def set_english():
     current_lang = "EN"
     story = STORY_EN
     current = "S01_START" if "S01_START" in story else "start"
+    _enter_game_view()
     load_scene()
 
 
@@ -1733,6 +1717,7 @@ def set_turkish():
     current_lang = "TR"
     story = STORY_TR
     current = "S01_START" if "S01_START" in story else "start"
+    _enter_game_view()
     load_scene()
 
 
@@ -2008,9 +1993,110 @@ class InventoryOverlay:
                 pass
 
 
+
+# ----------------------------
+# Menu overlay helpers (logo-only)
+# ----------------------------
+def _hide_menu_logo_only():
+    global menu_logo_label, menu_logo_img
+    try:
+        if menu_logo_label:
+            menu_logo_label.place_forget()
+    except:
+        pass
+
+def _show_menu_logo_only():
+    """
+    Ana menü / dil seçimi ekranında: sadece logo görünsün,
+    oyun canvas (mavi pencere) görünmesin.
+    """
+    global menu_logo_label, menu_logo_img
+
+    # canvas'ı tamamen gizle
+    try:
+        carousel_canvas.place_forget()
+    except:
+        pass
+
+    # logo label'ı oluştur/yerleştir
+    if menu_logo_label is None:
+        menu_logo_label = tk.Label(root, bg=BG_COLOR, bd=0)
+    # logo görselini yükle
+    try:
+        logo = load_photo_fit("images/logo.png", 1500, 540, _img_cache)
+    except:
+        logo = None
+    menu_logo_img = logo
+    if logo:
+        menu_logo_label.config(image=logo)
+        menu_logo_label.image = logo
+    else:
+        menu_logo_label.config(text="02:17", fg="white", font=("Segoe UI Semibold", 34, "bold"))
+
+    sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+    # logoyu yukarı merkeze değil, görseldeki gibi orta-üstte konumla
+    menu_logo_label.place(relx=0.5, rely=0.30, anchor="center")
+
+def _enter_game_view():
+    """
+    Dil seçildikten sonra oyun 'pencere/canvas' alanını geri aç.
+    """
+    _hide_menu_logo_only()
+    # canvas'ı tekrar göster (default triptych pozisyonu)
+    try:
+        carousel_canvas.place(relx=0.5, y=30, anchor="n")
+    except:
+        pass
+
 # ----------------------------
 # Main screen show/hide helpers
 # ----------------------------
+
+# ============================================================
+# ✅ MAIN MENU: [ GALLERY ] [ BAŞLA ] [ AYARLAR ] [+ ÇIKIŞ]
+# ============================================================
+def show_main_menu():
+    stop_clicks()
+    stop_sfx_loop()
+    stop_flicker()
+    stop_dizzy()
+    set_canvas_triptych_mode()
+
+    _show_menu_logo_only()
+
+    bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+    bg_label.lower()
+
+    _show_menu_logo_only()
+
+    card.pack(padx=30, pady=(600, 22), fill="x")
+    story_label.config(text="02:17\n\nAna Menü")
+
+    def _open_settings():
+        try:
+            audio_ui.open()
+            audio_ui.lift()
+        except:
+            pass
+
+    choice_buttons[0].config(text="GALLERY", command=show_gallery, state="normal")
+    choice_buttons[1].config(text="BAŞLA", command=show_language_screen, state="normal")
+    choice_buttons[2].config(text="AYARLAR", command=_open_settings, state="normal")
+    choice_buttons[3].config(text="ÇIKIŞ", command=on_escape, state="normal")
+
+    try:
+        if not choice_containers[3].winfo_ismapped():
+            choice_containers[3].pack(side="left", padx=44)
+    except:
+        pass
+
+    audio_ui.lift()
+    try:
+        inv_ui.lift()
+    except:
+        pass
+
+
 def show_language_screen():
     stop_clicks()
     stop_sfx_loop()
@@ -2021,14 +2107,14 @@ def show_language_screen():
     bg_label.place(x=0, y=0, relwidth=1, relheight=1)
     bg_label.lower()
 
-    show_logo_on_canvas()
+    _show_menu_logo_only()
 
     card.pack(padx=30, pady=(600, 22), fill="x")
     story_label.config(text="Select Language / Dil Seç")
 
     choice_buttons[0].config(text="English", command=set_english, state="normal")
     choice_buttons[1].config(text="Türkçe", command=set_turkish, state="normal")
-    choice_buttons[2].config(text="", state="disabled")
+    choice_buttons[2].config(text="Geri (Ana Menü)", command=show_main_menu, state="normal")
     choice_buttons[3].config(text="", state="disabled")
     try:
         choice_containers[3].pack_forget()
@@ -2052,7 +2138,7 @@ def start_main_after_splash(splash):
     root.attributes("-fullscreen", True)
     root.focus_force()
 
-    show_language_screen()
+    show_main_menu()
     play_music_loop()
 
 
@@ -2061,10 +2147,10 @@ def show_splash_logo(duration_ms=1400):
     splash.overrideredirect(True)
     splash.configure(bg=BG_COLOR)
 
-    logo = load_photo_fit("images/logo.png", 900, 360, _img_cache)
+    logo = load_photo_fit("images/logo.png", 1800, 720, _img_cache)
 
     sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
-    w, h = 900, 360
+    w, h = 1090, 720
     x = (sw - w) // 2
     y = (sh - h) // 2
     splash.geometry(f"{w}x{h}+{x}+{y}")
@@ -2205,11 +2291,6 @@ def skip_typing(e=None):
 
 
 def on_space(e=None):
-    """
-    ✅ SPACE behavior:
-    - typing sırasında: skip_typing
-    - pagebreak bekliyorsa: clear + continue
-    """
     global waiting_pagebreak
     if waiting_pagebreak:
         _continue_after_pagebreak()
@@ -2269,7 +2350,7 @@ story_label.pack(padx=22, pady=(18, 16))
 
 choices_row = tk.Frame(card, bg=BG_COLOR)
 choices_row.pack(pady=(0, 18))
-
+("images/logo.png", 900, 360, _img_cache)
 choice_buttons = []
 choice_borders = []
 choice_containers = []
