@@ -1131,7 +1131,7 @@ STORY_TR = {
         "3": ("Galeriyi aç", "S06_GALLERY", []),
     },
 },
-"S03.5_NOTİFİCATİON ": {
+"S03.5_NOTİFİCATİON": {
     "text": (
         "Kurtul ordan çabuk.||"
         "Orası artık güvenli değil.|| "
@@ -1169,7 +1169,7 @@ STORY_TR = {
             "3": ("Odaya geri dön", "S09_LOOP_ROOM", []),
         },
     },
-    "04_CORRIDOR_After_NOTİFİCATİON": {
+    "S04_CORRIDOR_After_NOTİFİCATİON": {
         "text": (
             "Koridor sessiz.||"
             "Işıklar hafifçe titriyor.||"
@@ -1226,15 +1226,10 @@ STORY_TR = {
             "2": ("ilerdeki adama sor", "S08_JANITOR", []),
             "3": ("Odaya geri dön", "S09_LOOP_ROOM_2", []),
         },
-    },
-        "S04_CORRIDOR_After_camera": {
-        "text": (
-            "Yine koridoryayız.||"
-            "hala sessiz.||"
-            "ilerdeki kişi hala orda  ."
-        ),
-        "images": [None, "images/s04_corridor.png", None],
-     "S04_CORRIDOR_AFTER_CAMERA": {
+
+        
+       
+     "S04_CORRIDOR_After_camera": {
     "text": (
         "Koridordasın.||"
         "Boş.||"
@@ -1260,7 +1255,7 @@ STORY_TR = {
     "images": [None, "images/s15_fire_exit.png", None],
     "effects": ["SET_FLAG_FIRE_EXIT_TRIED"],
     "choices": {
-        "1": ("Geri dön", "S04_CORRIDOR_AFTER_CAMERA", []),
+        "1": ("Geri dön", "S04_CORRIDOR_After_camera", []),
         "2": ("Odana dön", "S09_LOOP_ROOM_4", []),
     },
 },
@@ -1284,7 +1279,7 @@ STORY_TR = {
         "image": "images/s05_footprint.png",
         "choices": {
             "1": ("İzi takip et", "S04_CORRIDOR_after_footprint", []),
-            "2": ("Görmezden gel", "SS09_LOOP_ROOM_2", []),
+            "2": ("Görmezden gel", "S09_LOOP_ROOM_2", []),
             "3": ("Fotoğrafını çek", "S06_GALLERY_after_footprint", []),
         },
     },
@@ -1452,7 +1447,7 @@ STORY_TR = {
         "3": ("Yaşlı adam gelemden saklanıcak biyer bul", "S16_CAFETERIA_HIDE", []),
     },
 },
-"SXX_CAFETERIA_HIDE": {
+"S16_CAFETERIA_HIDE": {
   "text": (
     "Tezgâhın altına giriyorsun.|| Dizlerin taş zemine gömülüyor.||"
     "Kapı açılıyor.|||"
@@ -1460,8 +1455,8 @@ STORY_TR = {
     "Ayakkabısının sesi... duruyor. Tam önünde."
   ),
   "choices": {
-    "1": ("Sessiz kal / nefesini tut", "SXX_HIDE_BREATH", ["F_HIDE"]),
-    "2": ("Ses çıkar (tıkırtı)", "SXX_HIDE_DISTRACT", ["F_NOISE"]),
+    "1": ("Sessiz kal / nefesini tut", "15_HIDE_SILENT_1", ["F_HIDE"]),
+    "2": ("Ses çıkar (tıkırtı)", "S16_HIDE_DISTRACT", ["F_NOISE"]),
     "3": ("Etrafı Aaramya başla.'", "S16_CAFETERIA_CHESS_SETUP", []),
   }
 },
@@ -1562,10 +1557,229 @@ STORY_TR = {
         
     ),
     "choices": {
-        "1": ("Kapıya yüklen", "S15_STORAGE_PANIC", []),
-        "2": ("Etrafı kontrol et", "S16_CAFETERIA_CHESS_SETUP", []),
+        "1": ("Havalandırmayı kullan(tek başına kurtul odadan)", "S15_RAY_VENT_ESCAPE_SOLO", []),
+        "2": ("Hademeye seslen", "S17_ESCAPE_TOGETHER_OVERCOME_JANITOR", []),
         "3": ("Sessiz kal", "S15_STORAGE_LISTEN", []),
     },
+},
+"S17_ESCAPE_TOGETHER_OVERCOME_JANITOR": {
+    "text": (
+        "ORTANCA: \"Tamam. Dinle.\"|||"
+        "ORTANCA: \"Onu yenemeyiz.||"
+        "Ama onu kandirabiliriz.\"|||"
+        "Sen: \"Nasıl?\"|||"
+        "ORTANCA: Bilmiyiyorum|||"
+        "ORTANCA: Onunla konuşmalıyız.||"
+        "Kapıyı tıklatıyorsun.\"|||"
+        "Tak.|||"
+        "Tak.|||"
+        "Tak.|||"
+        "Hademe Kapıyı açıyor |||"
+        "Hademe:ne istiyorsunuz\"||"
+        "ORTANCA: \"anlaşma yapmak istiyoruz.\"|||"
+        "Hademe:Neden size güveniyim.||"
+        "ORTANCA :Bizi sonsuza kadar burda tutamazsın.|||"
+        "Hademe: Aslında yapabilirim |||"
+        "ORTANCA :Hayır yapamazsınn aynı zamanda 3 farklı varyantın bulunamsın risklerini biliyosun .||"
+        "Hademe:P ekalaNe istiyorsunuz.|||"
+        "ORTANCA :ne istediğimi biliyosun.||"
+        "ORTANCA :çocuğun burdan gitmesi.||"
+        "Hademe:Bunun olmucağını biliyosun .||"
+        "Hademe:Neden olamıcağınıda biliyosun .||"
+        "Sen'burda neler oluyo:.||"
+        "ORTANCA :Anlat ona.||"
+        "Hademe:Pekİ.||"
+        "Hademe:Ama bunun hoşuna gidiceğini sanmıyorum .||"
+        'Hademe:Şuan geçmiş ve gelecek senin burda kalmana bağlı'
+        'Hademe:Sen bi anomalisin zamanı bir arada tutuyorsun '
+        'Sen:peki neden ben '
+        'Hademe:Çünkü hepsi benim hatam '
+        'Hademe:Ve sen bensin '
+        'Hademe:Burdan çıkmıyorsun '
+        'Deyip kapıyı üzerine kapıyı kapatmak için arkasını dönüyor çıkmaya hazırlanıyor '
+        
+        
+    ),
+    "choices": {
+        "1": ("İtiraz et", "S18_ARGUE_WITH_JANITOR", []),
+        "2": ("Hademeye saldır", "S18_ATTACK_JANITOR", []),
+        "3": ("Orada kalmaya karar ver", "S18_DECIDE_STAY", []),
+    },
+},
+"S18_ARGUE_WITH_JANITOR": {
+    "text": (
+        "Sen: \"Hayır.\"|||"
+        "Sen: \"Bu benim hayatım değil.\"|||"
+        "Hademe gözlerini kısıyor…||"
+        'Başka çaren yok'
+        'Duvardaki saate bakıyorsun 02:17'
+        '02:17'
+        've hep 02:17'
+        'Zamanda sıkışıp kaldın'
+        'En azından yanlız değilsin'    ),
+
+        "ending_id": "END_LOCKED_FOR_TIME",
+        
+  
+    
+},
+"S18_DECIDE_STAY": {
+    "text": (
+        "Sen: yapabilceğimiz bişey yok.\"|||"
+        "Sen:  fazla güçlü.\"|||"
+        "Hademe gözlerini kısıyor…||"
+        'Bende öyle düşünmüştüm'
+        'Duvardaki saate bakıyorsun 02:17'
+        '02:17'
+        've hep 02:17'
+        'Zamanda sıkışıp kaldın'
+        'En azından yanlız değilsin'    ),
+
+        "ending_id": "END_LOCKED_FOR_TIME",
+        
+  
+    
+},
+"S18_ATTACK_JANITOR": {
+    "text": (
+        "Sen: \"Hayır.\"|||"
+        "Sen: \"Bu benim hayatım değil.\"|||"
+        "Böyle bitemez deyip saldırıyorsun…||"
+        "Seni geçen seferki gibi kolayca itiyor||"
+        "Ama busefer yanlız değilsin ||"
+        "Senin ittiği esnada arkandan genç halin gelip|| onu itiyor ve adam yalpalayıp yere düşüyor|||"
+        "Bu ikiniz içinde bir fırsat hemen koridora koşuyorsunuz"
+        "Yangın çıkışına doğru koşuyorsunuz"
+        "Çıkışa vardığında cebinden anahtarı çıkartıp kilide takıyorsun"
+        "Yangın çıkışının kapısı açıldığında bi zaman portalı çıkıyor"
+        "O sırada yalpalıyan hademe ayağı kalkıyor ve belindeki silahı çıkarıyor"
+        "Ve bi el havaya ateş ediyor"
+        "ÇABUK DURUN !!!!"
+        "Beni buna mecbur bırakmayın"
+        "Silahı sana doğru doğrultuyor.|||"
+        "O an genç halinin de belinde bir silah olduğunu fark ediyorsun.|||"
+        "Genç halin sana bakıyor.||"
+        "Sanki kararını senden bekliyor.|||"
+        "Portalın içi dalgalanıyor.||"
+        "Bir saniyen var."
+    ),
+    "choices": {
+        "1": ("Genç halini tut ve portala atla", "END_ATTACK_PORTAL_JUMP", []),
+        "2": ("Silahı indir ve teslim ol", "END_ATTACK_SURRENDER", []),
+        "3": ("Hademeyi durdurmaya çalış", "END_ATTACK_DISARM_ATTEMPT", []),
+    },
+},
+"END_ATTACK_PORTAL_JUMP": {
+    "text": (
+        "Genç halinin bileğini yakalıyorsun.|||"
+        "Sen: \"ŞİMDİ!\"|||"
+        "O seni anlıyor.||"
+        "Bir an bile tereddüt etmiyor.|||"
+        "İkiniz birden portala atlamak içiçn hamle ediyorsunuz.|||"
+        "Hademe bunun olmasına izin veremem deyip ateş ediyor.|||"
+        'Elinle karnını tutuyorsun'
+        'Heryer kan olmuş'
+        'Aynı anda hepiniz karnınızı tutuyorsunuz'
+        'Sen ölünce gelecekti varyantlarında ölüyo'
+        'Neden yaptın diye soruyorsun son nefesinsle'
+        'oda son nefesiyle cevap veriyor'
+        'Mecburdum...'
+    ),
+    "ending_id": "END_ATTACK_PORTAL_JUMP",
+},
+"END_ATTACK_SURRENDER": {
+    "text": (
+        "Genç halin sana bakıyor.||"
+        "Gözleri ‘soru’ değil… ‘öfke’.|||"
+        "Sen bir adım öne çıkıyorsun.|||"
+        "Sen: \"Yapma.\"|||"
+        'Genç halin:Napıyorsun teslim olamazsın'
+        'Sen: biz bu değiliz biz katil değiliz'
+        'Genç halin: seni dinlemiyor ve silahına davranırken'
+        'Genç halin vururluyor'
+        'Ve karnını tutmaya başlıyor '
+        'Aynı anda yaşlı halinde karnını tutuyor'
+        'Genç halin olmadan yaşlı halin olamaz'
+        'Genç halininin suratında tatlı bi tebessüm'
+        'Sen:bunun olucağını biliyordun değilmi'
+        'Son nefesiyle özgür olmanı istedim '
+        'artık öözgürsün kendini ve geleceğini kurtar'
+        'gözlerini yumuyor'
+        'Onun ölümünün anlanlandırman gerek'
+        'herşeye rağmen portal giriyorusun '
+        'Ardına bakmadan '
+        'Portaldan geçtikten sonra'
+        'Gözün kakarırıyor'
+        'Ve yatağında uynaıyorsun'
+        'Yine aynı odadasın '
+        'Doğrulup telefonuna bakıyorsun '
+        'saat 02:18 '
+        'Ve bir bildirim var'
+        'Bugünden değil gelecekten'
+        'Ve şöyle diyor en yaptın bilmiyorum||'
+        'Ama doğru olanı yaptın'
+    ),
+    "ending_id": "END_ATTACK_SURRENDER",
+},
+
+"END_ATTACK_DISARM_ATTEMPT": {
+    "text": (
+        "Genç halin sana bakıyor.||"
+        "Gözleri ‘soru’ değil… ‘öfke’.|||"
+        'O zaten kararnı vermiş '
+        "Sen bir adım öne çıkıyorsun.|||"
+        "Sen: \"Yapma.\"|||"
+        "Ama kelime havada kalıyor.|||"
+        "Silahına davranıyor ve:|||"
+        "Hademe karnını tutmaya başlıyor…||"
+        "hademe nefes nefese kalıyor…||"
+        "Ve yere yığılıyor …|||"
+        "Son nefesiyle 'herşey benim suçumdu'.|||"
+        'Genç haline bakıyorsun sen ne yaptın der gibi'
+        'Bana öyle bakamyı kes bunu yapmak zorundaydım'
+        'Hademe o zamanı bir arada tutmadığı için ozaman yokolmaya başlıyor'
+        'Saatler 02:18i göstermeye başlıyor'
+        'Portaldan geçmekten başka bi seçeeğiniz yok'
+        'Genç haline bakıp diyorsunki '
+        'Bakalım gelcek bize ne getirecek'
+        'Sana bakıp gülümsüyor ve diyorki'
+        'Daaha kötü olamaz'
+    ),
+    "ending_id": "END_ATTACK_DISARM_ATTEMPT",
+},
+
+"S15_RAY_VENT_ESCAPE_SOLO": {
+    "text": (
+        "Gözlerin karanlığa alışırken tavandaki metal ızgarayı fark ediyorsun.||"
+        "Havalandırma.|||"
+        'Ama çok yüksekte'
+        'birinin diğerini kaldırması gerek'
+        "ORTANCA: \"Madem yanlız birimiz burdan çıkabilir bu sen olmalısın \"|||"
+        " \"İtiraz etmiyorsun  \"|||"
+        "Ellerin ızgaraya gidiyor.||"
+        "Vida yok.||"
+        "Sadece eski, gevşek bir kilit.|||"
+        "Parmaklarını araya sokuyorsun.||"
+        "Çıt.|||"
+        "Izgara hafifçe açılıyor.||"
+        "İçeriden kuru, tozlu bir hava yüzüne vuruyor.|||"
+        "Sürünerek içeri giriyorsun.||"
+        "Omuzların zor sığıyor.|||"
+        "Karanlık bir tünel.||"
+        "Her hareketinde metal inliyor.|||"
+        "Bir yerde tünel ikiye ayrılıyor gibi.||"
+        "Hangisi doğru bilmiyorsun.|||"
+        "Ama bir şeyi biliyorsun:||"
+        "Geri dönmeyeceksin.|||"
+        "Bir çıkış ızgarası.|||"
+        "İtiyorsun.||"
+        "Kendini dışarı bırakıyorsun.|||"
+        "Kafeterya koridoru.||"
+        "Boş gibi…|||"
+        "Ama ışıklar titriyor.||"
+        "Sanki senin geldiğini haber veriyor."
+    ),
+    "auto_next": "END_SOLO_ESCAPE",
 },
 
 "S16_CHESS_PUZZLE_SCREEN": {
@@ -1683,10 +1897,197 @@ STORY_TR = {
     ),
     "choices": {
         "1": ("Koridora git ve anahtarla kaç", "END_SOLO_ESCAPE", []),
-        "2": ("Ses gelen kapıya yaklaş", "S15_CAFETERIA_STORAGE_LOCK", []),
+        "2": ("Ses gelen deponnun kapısına doğru yaklaş", "S15_CAFETERIA_STORAGE_LOCK", []),
     },
 },
 
+"S16_RAY_TO_S15_CAPTURE": {
+    "text": (
+        "Kapıya yaklaşıyorsun.||"
+        "Ses çok yakın….|||"
+        "Elin, istemsizce anahtarı sıkıyor.||"
+        "Metal avucunda sıkıca duruyor.|||"
+        "Kulağını kapıya yaklaştırıyorsun.||"
+        "içeriyi duymak için.||"
+        "Ve tam o boşlukta—|||"
+        "Arkandan bir gölge düşüyor.||"
+        "Ne olduğunu anlamadan bileğin kavranıyor.|||"
+        "Hademe.||"
+        "Tek kelime etmeden seni çekiyor.|||"
+        "Kapı açılıyor.||"
+        "İçeriden ağır bir depo kokusu vuruyor.|||"
+        "Bir itiş…||"
+        "Kapı kapanıyor.||"
+        "Kilit sesi."
+    ),
+    "auto_next": "S15_CAFETERIA_STORAGE_LOCK",
+},
+"END_SOLO_ESCAPE": {
+    "text": (
+        "Kafeteryadan fırlıyorsun.||"
+        "Koridorun ucunda, paslı bir tabela:||"
+        "YANGIN ÇIKIŞI.|||"
+        "Kapının etrafındaki ışık diğerlerinden farklı…||"
+        "Garip bi his veriyo .|||"
+        "Arkana bakıyorsun—|||"
+        "Hademe beliriyor.||"
+        "Yaşlı… omuzları çökmüş… ama gözleri keskin.|||"
+        "Koşamıyor.||"
+        "Ama seni durdurmaya çalışıyor.|||"
+        "Sen kapıya doğru hızlanıyorsun.||"
+        "Elin kolu titreyerek anahtarı çıkarıyor.|||"
+        "Kilit…|||"
+        "Tık.|||"
+        "Kapıyı açıyorsun ve—|||"
+        "Bir koridor değil.||"
+        "bu bir kapı değil.|||"
+        "Kapının içinde… dönüp duran bir boşluk var.||"
+        "Işık değil— sanki zamanın kendisi kıvrılıyor.|||"
+        "Bir ZAMAN PORTALI.|||"
+        "Hademe arkanıdan bağırıyor:|||"
+        "\"Dur!\"||"
+        "\"Her şeyi mahvedeceksin!\"|||"
+        "Sesi çatlıyor.||"
+        "Sanki bu cümleyi daha önce de söylemiş gibi…|||"
+        "Parmakların kapı kolunda.||"
+        "Bir adım… ya da bir soru."
+    ),
+    "choices": {
+        "1": ("Hademeye ne olduğunu sor", "END_SOLO_ESCAPE_ASK", []),
+        "2": ("Kapıdan geç", "END_SOLO_ESCAPE_PORTAL", []),
+    },
+},
+"END_SOLO_ESCAPE_PORTAL": {
+    "text": (
+        "Kapıdan geçiyorsun.|||"
+        "Ne ‘özgürlük’ diyebiliyorsun…||"
+        "Ne ‘kaçış’.|||"
+        "Sadece… geçiyorsun.|||"
+        "Hademe arkandan bağırıyor .||"
+        "Dur herşeyi mahvediceksin .|||"
+        "Ona aldrırış etmeden portaldan geçiyorsun  .|||"
+        "—|||"
+        "Gözlerini açıyorsun.|||"
+        "Yatak.||"
+        "Tavan.||"
+        "Odanın kokusu.|||"
+        "Her şey… aynı.|||"
+        "Doğrulup saate bakıyorsun.||"
+        "Saat: 02:18.||"
+        'Ama neden herşey yolunamı girdi'
+        'Tam o sırada bir ses duyuyosun '
+        
+        
+    ),
+    "ending_id": "END_SOLO_ESCAPE_PORTAL",
+},
+
+"END_SOLO_ESCAPE_ASK": {
+    "text": (
+        "Yutkunuyorsun.||"
+        "\"Bunu neden yapıyorsun?\"|||"
+        "\"Bu kapı ne?\"|||"
+        "\"Neden bu zamanda sıkışıp kaldım?\"|||"
+        "Hademe birkaç adım daha atıyor.||"
+        "Nefes nefese… ama gözlerini senden ayırmıyor.|||"
+        "\"Ben…\"||"
+        "Cümle boğazında takılıyor.|||"
+        "\"Ben, bunların hepsini ben başlattım.\"|||"
+        "Nasıl yani diye soruyorsun.||"
+        "Hiç geçmişe gidip bir şeyleri yeniden başlatmak istedin mi?|||"
+        "\"Her şeyi düzeltmek…\"||"
+        "\"Ben istedim.\"|||"
+        "\"Karımı ve kızımı kaybettikten sonra.\"|||"
+        "Benim hatamdı. Onları korumalıydım.||"
+        "Ama yapamadım.|||"
+        "\"Her şeyimi kaybetmiştim.\"|||"
+        "\"Ama bir gün ikinci bir şans yaratmanın mümkün olduğunu öğrendim.\"||"
+        "\"Karımı ve kızımı kurtarabilirdim.\"||"
+        "\"Öyle de yaptım.\"|||"
+        "Zaman portalını o kaza gününe ayarladım.||"
+        "Nihayet o kazayı hiç yaşanmamış kılabilecektim.|||"
+        "\"Öyle de yaptım.\"|||"
+        "Bir süre mutluydum.||"
+        "Hayatım tekrar karımla ve kızımla mutlu olduğum günlere geri dönmüştü.|||"
+        "Sonra ne oldu?|||"
+        "Zamanla ilgili bilmen gereken şey şu:|||"
+        "Ne kadar kurcalarsan o kadar kontrolden çıkar.|||"
+        "Bir süre sonra yaptığım değişikliğin bedelini ödedim.|||"
+        "Kendi zamanım içine çöktü.||"
+        "Tamamen karanlık ve boş bir zaman…|||"
+        "\"Milyarlarca hayat… o zamanda yaşayan insanlar…\"|||"
+        "Kiminin geleceği, kiminin geçmişi…||"
+        "Hepsi yok oldu. Zamanın içinde bir yarık açıldı.|||"
+        "Yaptığım hatayı fark ettiğimde her şey çok geçti.|||"
+        "\"Ama yaptığım şeyi düzeltebilirdim.\"|||"
+        "30 yıl öncesine gittim.||"
+        "Genç halime bunu anlattım ve durması gerektiğini söyledim.|||"
+        "\"Ama bunu anlayamayacak kadar kibirli ve toydu.\"|||"
+        "Ben de ona engel olamayacak kadar yaşlıydım.|||"
+        "O yüzden daha da geçmişe gitmeye karar verdim.|||"
+        'Yılanın başını küçükken ezmeye.||'
+        "Ama tam oradan ayrılırken genç halim beni takip etti.||"
+        "Ve bu zamanda sıkıştık… hepimiz.|||"
+        "Ve seni buradan kurtarıp yaptığım şeye engel olmaya çalışıyordu.|||"
+        "\"O yüzden onu durdurdum.\"|||"
+        "Şimdi de seni durduracaM.||"
+        "Zamanı korumak zorundayım."
+    ),
+    "choices": {
+        "1": ("Kal ve zamanı koru", "END_SOLO_STAY_PROTECT_TIME", []),
+        "2": ("Ayrıl ve özgür ol", "END_SOLO_LEAVE_FREE", []),
+    },
+},
+"END_SOLO_STAY_PROTECT_TIME": {
+    "text": (
+        "Hademe elini uzatıyor.||"
+        "Bu fedakarlığı yapmak zorundayız.||"
+        "Portal arkanda dönmeye devam ediyor.||"
+        "Ama sesi artık daha kısık.|||"
+        "Kapıyı kapatıp kilitliyorsun.|||"
+        "Sanırım haklısın.||"
+        "Bu fedakarlığı yapmalıyım.|||"
+        "İnsanlığı kurtarmak için||"
+        "Ve orda kalıyorsun.|||"
+        "Yıllar boyunca.\\\"|||"
+        "Hayatın boşa geçiyor.\\\"|||"
+        "Ama en azından biliyorsun.\\\"|||"
+        "Zaman artık güvende.\\\"|||"
+    ),
+    "ending_id": "END_SOLO_STAY_PROTECT_TIME",
+},
+
+"END_SOLO_LEAVE_FREE": {
+    "text": (
+        "Geri çekilmiyorsun.||"
+        "Bir adım ileri gidiyorsun.|||"
+        "Hademe ‘dur’diye sesleniyor.||"
+        "Herşeyi mahvediceksin.|||"
+        "Hapis ve güvenli bi ömür geçirmektense.||"
+        "Özgür bi bilinmez bi sonu tercih ederim.|||"
+        "Portalın içi dalgalanıyor.||"
+        "\"Özgürlük,\" diyorsun.||"
+        "\"Buna ihtiyacım var.\"|||"
+        "Hademenin sesi çok kısık:|||"
+        "\"Özgürlük değil o…\"||"
+        "\"O bir son.\"|||"
+        "Geçiyorsun.|||"
+        "Gözlerin yanıyor.||"
+        "Kulakların uğulduyor.|||"
+        "Dünya… bir anlığına üst üste biniyor.|||"
+        "Ve sonra—|||"
+        "Sessizlik.|||"
+        "Yatağında uyanıyorsun.||"
+        "Herşey aynı.|||"
+        "Gine aynı oda .|||"
+        "Az önce yaşadıklarım bir rüyamıydı.|||"
+        "Doğrulup telefoan bakıyorsun:|||"
+        "Saat: 02:18|||"
+        "Sanki bişeyleri doğru yapmış gibisin:|||"
+        "\"Ama kim bilir bunu zaman göstericek .\""
+    ),
+    "ending_id": "END_SOLO_LEAVE_FREE",
+},
 
 "S09_LOOP_ROOM": {
     "text": (
@@ -1702,7 +2103,7 @@ STORY_TR = {
     ],
     "choices": {
         "1": ("Bu daha önce oldu", "S10_MEMORY_GLITCH", []),
-        "2": ("Hızla ayağa kalk", "S04_CORRIDOR", []),
+        "2": ("Hızla ayağa kalkSanki", "S04_CORRIDOR", []),
         "3": ("Kıpırdama", "END_E02", []),
     },
 },
@@ -1820,7 +2221,7 @@ STORY_TR = {
         "choices": {
             "1": ("Kayıtları izle", "S11.1_CAMERA_REALIZATION", []),
             "2": ("Tüm Ekranları kapat", "END_E03", []),
-            "3": ("Odadan çık", "S04_CORRIDOR_AFTER_CAMERA", []),
+            "3": ("Odadan çık", "S04_CORRIDOR_After_camera", []),
         },
     },
 "S11.1_CAMERA_REALIZATION": {
@@ -1832,7 +2233,7 @@ STORY_TR = {
     "choices": {
         "1": ("Kamerayı kapat", "S11.2_CAMERA_ZOOM", []),
          "2": ("Kamerayı kapat",  "END_E03", []),
-         "3": ("Geri çekil", "S04_CORRIDOR_AFTER_CAMERA", []),
+         "3": ("Geri çekil", "S04_CORRIDOR_After_camera", []),
     },
 },
 "S11.2_CAMERA_ZOOM": {
@@ -1846,7 +2247,7 @@ STORY_TR = {
     ),
     "images": [None, "images/s11_camera_you_close.png", None],
     "choices": {
-        "1": ("Artık burda işin \n kalmadı odadan çık", "S04_CORRIDOR_AFTER_CAMERA", []),
+        "1": ("Artık burda işin \n kalmadı odadan çık", "S04_CORRIDOR_After_camera", []),
         "2": ("Bir kez daha zoom", "S11.3_CAMERA_ZOOM_BREAK", []),
     },
 },
@@ -1861,7 +2262,7 @@ STORY_TR = {
     ),
     "images": [None, "images/s11_camera_shutdown.png", None],
     "choices": {
-        "1": ("Çık", "S04_CORRIDOR_AFTER_CAMERA", []),
+        "1": ("Çık", "S04_CORRIDOR_After_camera", []),
     },
 },
 
@@ -1875,7 +2276,7 @@ STORY_TR = {
         "image": "images/s12_camera_hint.png",
         "choices": {
             "1": ("Kapıyı aç", "S11_CAMERA_ROOM", ["O1"]),
-            "2": ("Geri çekil", "S04_CORRIDOR_AFTER_CAMERA", []),
+            "2": ("Geri çekil", "S04_CORRIDOR_After_camera", []),
             "3": ("Bunu aklında tut", "S10_MEMORY_GLITCH", []),
         },
     },
