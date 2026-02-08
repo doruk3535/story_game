@@ -5,7 +5,7 @@
     "END_E02",
     "END_E03",
     "END_SOLO_ESCAPE",
+    "END_SOLO_ESCAPE_ASK",
     "END_SOLO_ESCAPE_PORTAL"
-  ],
-  "preferred_lang": "TR"
+  ]
 }

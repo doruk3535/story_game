@@ -6,12 +6,13 @@
 # - ✅ Inventory (Çanta) overlay: I_* item'ları gösterir
 # - ✅ GameState apply_effects aktif (flag + item)
 # - ✅ NEW: PAGEBREAK SYSTEM with "|||"
+IMAGE_TOKEN = "##"  # hide/ignore in text
 #    - "||"  -> segment
 #    - "|||" -> page break: stop, wait SPACE, clear screen, continue
 
 import tkinter as tk
 import os
-import math 
+import math
 import time
 import io
 import wave
@@ -23,7 +24,9 @@ import re
 # ============================
 # ✅ PAGEBREAK SYSTEM
 # ============================
-PAGEBREAK_TOKEN = "|||"
+PAGEBREAK_TOKEN = "|||"  # pagebreak/wait token
+PAUSE_CHAR = "□"  # 1 kare = 1 saniye bekleme (metinde görünmez)
+PAUSE_MS_PER_CHAR = 1000
 waiting_pagebreak = False
 _pagebreak_continue_cb = None
 
@@ -102,7 +105,7 @@ def compute_locked_choices(scene: dict, state: GameState) -> dict:
                     continue
                 try:
                     label = tup[0]
-                except:
+                except Exception:
                     label = "Bilinmeyen"
                 locked[str(k)] = str(label)
     return locked
@@ -117,13 +120,23 @@ try:
 except Exception:
     PIL_OK = False
 
+
 # ----------------------------
 # Import story (robust)
 # ----------------------------
+STORY_EN = None
+STORY_TR = None
 try:
+    # preferred: story_en / story_tr names
     from game_story import story_en as STORY_EN, story_tr as STORY_TR
 except Exception:
+    try:
+        from game_story import STORY_EN, STORY_TR
+    except Exception:
+        from game_story import STORY_EN
+        STORY_TR = STORY_EN  # fallback: TR not provided
     from game_story import STORY_EN, STORY_TR
+
 
 # ----------------------------
 # winsound fallback (only if pygame click can't be used)
@@ -132,6 +145,7 @@ try:
     import winsound
 except Exception:
     winsound = None
+
 
 # ----------------------------
 # Paths
@@ -197,7 +211,7 @@ sfx_volume = sfx_volume_percent / 100.0
 sfx_loop_sound = None
 sfx_loop_channel = None
 
-# scene bazlı sfx loop kontrolü (eski footsteps mantığı)
+# scene bazlı sfx loop kontrolü
 sfx_started_this_scene = False
 
 
@@ -241,7 +255,6 @@ def _sound_candidates(path_any: str):
 
 
 def _choose_ambience_file():
-    # önce ambience_loop.* ara, yoksa footstep_loop.* fallback
     primary = _sound_candidates(AMBIENCE_PRIMARY)
     for p in primary:
         if os.path.exists(p):
@@ -270,20 +283,18 @@ def set_sfx_volume_percent(percent: int):
     sfx_volume_percent = max(0, min(100, int(percent)))
     sfx_volume = sfx_volume_percent / 100.0
 
-    # loop channel volume
     if PYGAME_OK and sfx_loop_channel:
         try:
             sfx_loop_channel.set_volume(sfx_volume)
         except Exception as e:
             print("[AUDIO] set sfx loop volume error:", e)
 
-    # click sound volume (tok)
     if PYGAME_OK:
         try:
             if click_sound:
                 click_sound.set_volume(0.80 * sfx_volume)
             if click_channel:
-                click_channel.set_volume(1.0)  # channel full, sound scaled
+                click_channel.set_volume(1.0)
         except Exception as e:
             print("[AUDIO] set click volume error:", e)
 
@@ -456,12 +467,12 @@ def stop_clicks():
     if PYGAME_OK and click_channel:
         try:
             click_channel.stop()
-        except:
+        except Exception:
             pass
     if winsound:
         try:
             winsound.PlaySound(None, winsound.SND_PURGE)
-        except:
+        except Exception:
             pass
 
 
@@ -481,13 +492,13 @@ def soft_click():
             click_channel.stop()
             click_channel.play(click_sound)
             return
-        except:
+        except Exception:
             pass
 
     if winsound and _CLICK_WAV_BYTES:
         try:
             winsound.PlaySound(_CLICK_WAV_BYTES, winsound.SND_MEMORY | winsound.SND_ASYNC)
-        except:
+        except Exception:
             pass
 
 
@@ -498,7 +509,7 @@ def stop_all_audio():
     if PYGAME_OK:
         try:
             pygame.mixer.quit()
-        except:
+        except Exception:
             pass
 
 
@@ -556,7 +567,7 @@ full_text = ""
 index = 0
 click_count = 0
 typing_done = True
-
+_auto_next_scheduled = False
 # Segmented flow state
 segments = []
 seg_i = 0
@@ -603,7 +614,7 @@ slot_items = {"L": None, "C": None, "R": None}
 slot_images = {"L": None, "C": None, "R": None}
 tmp_refs = {}
 
-# Hero single-image state (for layout=="single_focus")
+# Hero single-image state
 hero_item_id = None
 hero_img_path = None
 
@@ -617,14 +628,14 @@ story_label = None
 choices_row = None
 choice_buttons = []
 choice_borders = []
-choice_containers = []  # ✅ (butonların dış frame'i)
+choice_containers = []
 audio_ui = None
-inv_ui = None  # ✅ Inventory overlay
-
+inv_ui = None
 
 # Main Menu logo-only overlay
 menu_logo_label = None
 menu_logo_img = None
+
 # Flicker
 _flicker_cfg = None
 _flicker_running = False
@@ -636,10 +647,10 @@ def stop_flicker():
     global _flicker_running, _flicker_job, _flicker_slot
     _flicker_running = False
     _flicker_slot = None
-    if _flicker_job is not None:
+    if _flicker_job is not None and root is not None:
         try:
             root.after_cancel(_flicker_job)
-        except:
+        except Exception:
             pass
     _flicker_job = None
 
@@ -730,7 +741,7 @@ def try_start_flicker(slot_key: str, img_path: str):
             try:
                 carousel_canvas.itemconfig(item, image=fr)
                 slot_images[slot_key] = fr
-            except:
+            except Exception:
                 pass
         else:
             try:
@@ -738,7 +749,7 @@ def try_start_flicker(slot_key: str, img_path: str):
                     carousel_canvas.itemconfig(item, state="hidden")
                 else:
                     carousel_canvas.itemconfig(item, state="normal")
-            except:
+            except Exception:
                 pass
 
         _flicker_job = root.after(delay, step)
@@ -762,18 +773,18 @@ def stop_dizzy():
     global _dizzy_running, _dizzy_job, _dizzy_slot, _hero_dizzy_running, _hero_dizzy_job
     _dizzy_running = False
     _dizzy_slot = None
-    if _dizzy_job is not None:
+    if _dizzy_job is not None and root is not None:
         try:
             root.after_cancel(_dizzy_job)
-        except:
+        except Exception:
             pass
     _dizzy_job = None
 
     _hero_dizzy_running = False
-    if _hero_dizzy_job is not None:
+    if _hero_dizzy_job is not None and root is not None:
         try:
             root.after_cancel(_hero_dizzy_job)
-        except:
+        except Exception:
             pass
     _hero_dizzy_job = None
 
@@ -781,7 +792,7 @@ def stop_dizzy():
 def _dizzy_params(intensity: str, mode: str):
     """
     mode:
-      - "blur"  : sadece blur pulse (titreme yok)
+      - "blur"  : sadece blur pulse
       - "dizzy" : rotate/zoom
     """
     intensity = (intensity or "").lower().strip()
@@ -811,7 +822,6 @@ def _build_blur_frames_fit(img_path: str, target_w: int, target_h: int, intensit
 
     try:
         im = Image.open(abs_path(img_path)).convert("RGBA")
-
         iw, ih = im.size
         scale = min(target_w / iw, target_h / ih)
         nw = max(1, int(iw * scale))
@@ -856,7 +866,6 @@ def _build_dizzy_frames_fit(img_path: str, target_w: int, target_h: int, intensi
 
     try:
         im = Image.open(abs_path(img_path)).convert("RGBA")
-
         iw, ih = im.size
         scale = min(target_w / iw, target_h / ih)
         nw = max(1, int(iw * scale))
@@ -927,7 +936,7 @@ def try_start_dizzy(slot_key: str, img_path: str):
         try:
             carousel_canvas.itemconfig(item, image=fr)
             slot_images[slot_key] = fr
-        except:
+        except Exception:
             pass
         _dizzy_job = root.after(speed_ms, lambda: step(k + 1))
 
@@ -962,7 +971,7 @@ def try_start_dizzy_hero(img_path: str):
         fr = frames[k % len(frames)]
         try:
             carousel_canvas.itemconfig(hero_item_id, image=fr)
-        except:
+        except Exception:
             pass
         _hero_dizzy_job = root.after(speed_ms, lambda: step(k + 1))
 
@@ -1024,44 +1033,53 @@ def get_scene_images_list(scn: dict):
 
 def split_text_into_segments(txt: str):
     """
-    ✅ "||" splits into segments
-    ✅ "|||" creates a PAGEBREAK_TOKEN segment
+    TOKENLAR:
+      - "||"   : yeni segment (metin parçası)
+      - "|||"  : pagebreak (SPACE bekler)
+      - "##"   : görsel getir (bir sonraki resmi pop-in ile göster)
+      - "□"    : typewriter içinde 1 saniye bekleme (ekranda görünmez)
+
+    Not: Bu fonksiyon "||" tokenını çıktıya koymaz; sadece segmentlere böler.
     """
     if not txt:
         return [""]
 
     s = str(txt)
-
     out = []
-    i = 0
     buf = []
+    i = 0
     n = len(s)
 
-    def flush_buf():
+    def flush():
         nonlocal buf
-        chunk = "".join(buf).strip()
-        buf = []
-        if chunk:
-            parts = [p.strip() for p in chunk.split("||") if p.strip()]
-            out.extend(parts if parts else [])
-        return
+        if buf:
+            chunk = "".join(buf)
+            buf = []
+            if chunk.strip():
+                out.append(chunk.strip())
 
     while i < n:
         if s.startswith("|||", i):
-            flush_buf()
+            flush()
             out.append(PAGEBREAK_TOKEN)
             i += 3
             continue
+
+        if s.startswith(IMAGE_TOKEN, i):
+            flush()
+            out.append(IMAGE_TOKEN)
+            i += len(IMAGE_TOKEN)
+            continue
+
         if s.startswith("||", i):
-            flush_buf()
+            flush()
             i += 2
             continue
 
         buf.append(s[i])
         i += 1
 
-    flush_buf()
-
+    flush()
     return out if out else [""]
 
 
@@ -1069,7 +1087,6 @@ def split_text_into_segments(txt: str):
 # Canvas modes
 # ----------------------------
 def _calc_hero_size():
-    """Ekrana göre hero canvas ölçüsü."""
     global HERO_W, HERO_H
     sw = root.winfo_screenwidth()
     sh = root.winfo_screenheight()
@@ -1081,7 +1098,7 @@ def set_canvas_triptych_mode():
     try:
         carousel_canvas.config(width=ORIG_CW, height=ORIG_CH)
         carousel_canvas.place(relx=0.5, y=30, anchor="n")
-    except:
+    except Exception:
         pass
 
 
@@ -1096,7 +1113,7 @@ def set_canvas_hero_mode(custom_w=None, custom_h=None):
         carousel_canvas.config(width=w, height=h)
         carousel_canvas.place(relx=0.5, y=HERO_Y, anchor="n")
         return w, h
-    except:
+    except Exception:
         return w, h
 
 
@@ -1164,6 +1181,99 @@ def show_single_big_image(img_path: str):
                                    fill="white", font=("Segoe UI Semibold", 18, "bold"))
 
 
+
+
+def pop_in_hero(img_path: str, duration_ms=POP_MS, frames=POP_FRAMES, on_done=None):
+    """✅ HERO giriş animasyonu (single_focus sahnelerde 'ekrana gelme' efekti).
+    - PIL varsa: küçükten büyüğe pop-in
+    - PIL yoksa: normal yükler
+    """
+    global hero_item_id, hero_img_path
+    carousel_clear()
+
+    w = int(carousel_canvas.cget("width"))
+    h = int(carousel_canvas.cget("height"))
+
+    if not img_path:
+        carousel_canvas.create_text(w // 2, h // 2, text="NO IMAGE",
+                                   fill="white", font=("Segoe UI Semibold", 18, "bold"))
+        if on_done:
+            on_done()
+        return
+
+    hero_img_path = img_path
+    ap = abs_path(img_path)
+    if not os.path.exists(ap):
+        print("[IMG] MISSING:", ap)
+        carousel_canvas.create_text(w // 2, h // 2, text="IMAGE MISSING",
+                                   fill="white", font=("Segoe UI Semibold", 18, "bold"))
+        if on_done:
+            on_done()
+        return
+
+    # Fallback (no PIL)
+    if not PIL_OK:
+        show_single_big_image(img_path)
+        if on_done:
+            on_done()
+        return
+
+    try:
+        base = Image.open(ap).convert("RGBA")
+        bw, bh = base.size
+        scale_fit = min(w / bw, h / bh)
+        tw = max(1, int(bw * scale_fit))
+        th = max(1, int(bh * scale_fit))
+        base = base.resize((tw, th), Image.LANCZOS)
+
+        start_s = 0.18
+        end_s = 1.00
+        frames_list = []
+        for i in range(int(frames)):
+            t = (i + 1) / max(1, int(frames))
+            s = start_s + (end_s - start_s) * t
+            nw = max(1, int(tw * s))
+            nh = max(1, int(th * s))
+            fr = base.resize((nw, nh), Image.LANCZOS)
+
+            canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            ox = (w - nw) // 2
+            oy = (h - nh) // 2
+            canvas.paste(fr, (ox, oy), fr)
+            frames_list.append(ImageTk.PhotoImage(canvas))
+
+        hero_item_id = carousel_canvas.create_image(w // 2, h // 2, image=frames_list[0])
+        tmp_refs["hero_pop_frames"] = frames_list
+        tmp_refs["hero_pop_item"] = hero_item_id
+
+        step_ms = max(10, int(duration_ms / max(1, int(frames))))
+
+        def _anim(k=0):
+            nonlocal frames_list
+            if k >= len(frames_list):
+                # Final: cache'e tek photo koymak yerine son frame'i kullan
+                carousel_canvas.itemconfig(hero_item_id, image=frames_list[-1])
+                try:
+                    try_start_dizzy_hero(img_path)
+                except Exception:
+                    pass
+                if on_done:
+                    on_done()
+                return
+
+            try:
+                carousel_canvas.itemconfig(hero_item_id, image=frames_list[k])
+            except Exception:
+                pass
+            root.after(step_ms, lambda: _anim(k + 1))
+
+        _anim(0)
+
+    except Exception as e:
+        print("[HERO POP] ERROR:", e)
+        show_single_big_image(img_path)
+        if on_done:
+            on_done()
 def pop_in_to_slot(slot_key, path, x, y, duration_ms=POP_MS, frames=POP_FRAMES, on_done=None):
     if not path:
         if on_done:
@@ -1220,7 +1330,7 @@ def pop_in_to_slot(slot_key, path, x, y, duration_ms=POP_MS, frames=POP_FRAMES, 
                 place_slot(slot_key, frames_list[-1], x, y)
                 try:
                     carousel_canvas.delete(item)
-                except:
+                except Exception:
                     pass
 
                 try_start_dizzy(slot_key, path)
@@ -1258,13 +1368,13 @@ def bind_border_hover(btn, border_frame):
     def on(_e=None):
         try:
             border_frame.config(bg=BORDER_ON)
-        except:
+        except Exception:
             pass
 
     def off(_e=None):
         try:
             border_frame.config(bg=BORDER_OFF)
-        except:
+        except Exception:
             pass
 
     btn.bind("<Enter>", on)
@@ -1315,6 +1425,12 @@ def type_step():
 
     if index < len(full_text):
         ch = full_text[index]
+
+        # ✅ PAUSE: "□" karakteri gördüğünde 1 saniye bekle (kare yazılmaz)
+        if ch == PAUSE_CHAR:
+            index += 1
+            root.after(PAUSE_MS_PER_CHAR, type_step)
+            return
 
         if (not ch.isspace()) and (ch not in ".!?," ):
             click_count += 1
@@ -1384,8 +1500,12 @@ def play_text_segments_only(seg_list):
         if part == PAGEBREAK_TOKEN:
             _enter_pagebreak(lambda: root.after(HOOK_MS, write_next))
             return
+        if part == IMAGE_TOKEN:
+            # ignore image tokens in text-only flow
+            root.after(HOOK_MS, write_next)
+            return
 
-        start_typewriter(part, on_done=lambda: root.after(HOOK_MS, write_next), clear_first=(seg_i == 1))
+        start_typewriter(part, on_done=lambda: root.after(HOOK_MS, write_next), clear_first=(seg_i==1))
 
     write_next()
 
@@ -1399,6 +1519,34 @@ def play_scene_segment_flow(img_list, seg_list):
     while len(paths) < 3:
         paths.append(None)
     p1, p2, p3 = paths[:3]
+
+    img_seq = [p1, p2, p3]
+    img_ptr = 0
+
+    def pop_next_image(cb):
+        """Show next available image (L->C->R) ONLY when IMAGE_TOKEN ("##") is encountered."""
+        nonlocal img_ptr
+        while img_ptr < len(img_seq) and not img_seq[img_ptr]:
+            img_ptr += 1
+        if img_ptr >= len(img_seq):
+            cb()
+            return
+
+        path = img_seq[img_ptr]
+
+        # map pointer to slot
+        slot_map = {
+            0: ("L", SLOT_LX),
+            1: ("C", SLOT_CX),
+            2: ("R", SLOT_RX),
+        }
+        slot_key, slot_x = slot_map.get(img_ptr, ("R", SLOT_RX))
+        img_ptr += 1
+
+        def _done():
+            root.after(POP_DELAY_23, cb)
+
+        pop_in_to_slot(slot_key, path, slot_x, SLOT_Y, on_done=_done)
 
     pre_slot = None
     pre_path = None
@@ -1440,35 +1588,19 @@ def play_scene_segment_flow(img_list, seg_list):
         if text_part == PAGEBREAK_TOKEN:
             _enter_pagebreak(lambda: root.after(HOOK_MS, write_next_segment))
             return
+        if text_part == IMAGE_TOKEN:
+            pop_next_image(lambda: root.after(HOOK_MS, write_next_segment))
+            return
 
         def after_this_segment():
-            if seg_i == 1:
-                if p2:
-                    pop_in_to_slot("C", p2, SLOT_CX, SLOT_Y, on_done=lambda: root.after(POP_DELAY_23, write_next_segment))
-                else:
-                    root.after(POP_DELAY_23, write_next_segment)
+            root.after(HOOK_MS, write_next_segment)
 
-            elif seg_i == 2:
-                if p3:
-                    pop_in_to_slot("R", p3, SLOT_RX, SLOT_Y, on_done=lambda: root.after(POP_DELAY_23, write_next_segment))
-                else:
-                    root.after(POP_DELAY_23, write_next_segment)
-            else:
-                root.after(HOOK_MS, write_next_segment)
-
-        start_typewriter(text_part, on_done=after_this_segment, clear_first=(seg_i == 1))
+        start_typewriter(text_part, on_done=after_this_segment, clear_first=(seg_i==1))
 
     carousel_clear()
 
-    if p1:
-        pop_in_to_slot("L", p1, SLOT_LX, SLOT_Y, on_done=lambda: root.after(POP_DELAY_12, write_next_segment))
-    elif pre_slot and pre_path:
-        if pre_slot == "C":
-            pop_in_to_slot("C", pre_path, SLOT_CX, SLOT_Y, on_done=lambda: root.after(POP_DELAY_12, write_next_segment))
-        else:
-            pop_in_to_slot("R", pre_path, SLOT_RX, SLOT_Y, on_done=lambda: root.after(POP_DELAY_12, write_next_segment))
-    else:
-        root.after(POP_DELAY_12, write_next_segment)
+    # ✅ Images appear ONLY when "##" (IMAGE_TOKEN) is encountered in text
+    root.after(POP_DELAY_12, write_next_segment)
 
 
 def _is_single_focus_layout(scn: dict) -> bool:
@@ -1491,6 +1623,28 @@ def load_scene():
 
     scene = story[current]
     unlock_if_ending(current)
+
+    # ✅ Yeni sahneye geçince metin alanını temizle (segmentler kendi içinde biriktirir)
+    try:
+        story_label.config(text="")
+    except Exception:
+        pass
+
+
+    # ✅ AUTO NEXT
+    # - auto_next_after=True  => sahne bittikten sonra geç
+    # - auto_next_after=False => sahne açılır açılmaz geç (eski davranış)
+    auto_next = scene.get("auto_next", None)
+    auto_after = bool(scene.get("auto_next_after", False))
+
+    if auto_next and (not auto_after):
+        delay = int(scene.get("auto_delay_ms", 0) or 0)
+        if auto_next in story:
+            root.after(max(0, delay), lambda: go_to(auto_next))
+            return
+        else:
+            print("[AUTO_NEXT] target not found:", auto_next, "from", current)
+
 
     _flicker_cfg = scene.get("flicker", None)
     _dizzy_cfg = scene.get("dizzy", None)
@@ -1523,15 +1677,15 @@ def load_scene():
             if isinstance(imgs, (list, tuple)) and len(imgs) > 0:
                 one = imgs[0]
 
-        show_single_big_image(one)
-
         seg_list = split_text_into_segments(scene.get("text", ""))
-        play_text_segments_only(seg_list)
+
+        # ✅ HERO giriş animasyonu: önce görsel pop-in, sonra yazı akar
+        pop_in_hero(one, on_done=lambda: play_text_segments_only(seg_list))
 
         try:
             if inv_ui:
                 inv_ui.refresh()
-        except:
+        except Exception:
             pass
         return
 
@@ -1543,7 +1697,7 @@ def load_scene():
     try:
         if inv_ui:
             inv_ui.refresh()
-    except:
+    except Exception:
         pass
 
 
@@ -1567,7 +1721,7 @@ def show_buttons_for_scene():
         choice_buttons[3].config(text="", state="disabled")
         try:
             choice_containers[3].pack_forget()
-        except:
+        except Exception:
             pass
         return
 
@@ -1581,12 +1735,12 @@ def show_buttons_for_scene():
         try:
             if not choice_containers[3].winfo_ismapped():
                 choice_containers[3].pack(side="left", padx=44)
-        except:
+        except Exception:
             pass
     else:
         try:
             choice_containers[3].pack_forget()
-        except:
+        except Exception:
             pass
 
     for i, k in enumerate(keys):
@@ -1640,7 +1794,7 @@ def choose(choice_key):
     try:
         if inv_ui:
             inv_ui.refresh()
-    except:
+    except Exception:
         pass
 
 
@@ -1684,7 +1838,7 @@ def show_gallery():
     def _close():
         try:
             win.grab_release()
-        except:
+        except Exception:
             pass
         win.destroy()
 
@@ -1701,6 +1855,54 @@ def reset_events():
     STATE.items.clear()
 
 
+def _hide_menu_logo_only():
+    global menu_logo_label, menu_logo_img
+    try:
+        if menu_logo_label:
+            menu_logo_label.place_forget()
+    except Exception:
+        pass
+
+
+def _show_menu_logo_only():
+    """
+    Ana menü / dil seçimi ekranında: sadece logo görünsün,
+    oyun canvas (mavi pencere) görünmesin.
+    """
+    global menu_logo_label, menu_logo_img
+
+    # canvas'ı tamamen gizle
+    try:
+        carousel_canvas.place_forget()
+    except Exception:
+        pass
+
+    if menu_logo_label is None:
+        menu_logo_label = tk.Label(root, bg=BG_COLOR, bd=0)
+
+    try:
+        logo = load_photo_fit("images/logo.png", 1500, 540, _img_cache)
+    except Exception:
+        logo = None
+
+    menu_logo_img = logo
+    if logo:
+        menu_logo_label.config(image=logo, text="")
+        menu_logo_label.image = logo
+    else:
+        menu_logo_label.config(text="02:17", fg="white", font=("Segoe UI Semibold", 34, "bold"))
+
+    menu_logo_label.place(relx=0.5, rely=0.30, anchor="center")
+
+
+def _enter_game_view():
+    _hide_menu_logo_only()
+    try:
+        carousel_canvas.place(relx=0.5, y=30, anchor="n")
+    except Exception:
+        pass
+
+
 def set_english():
     global story, current, current_lang
     reset_events()
@@ -1713,6 +1915,8 @@ def set_english():
 
 def set_turkish():
     global story, current, current_lang
+    if not STORY_TR:
+        return
     reset_events()
     current_lang = "TR"
     story = STORY_TR
@@ -1726,7 +1930,7 @@ def on_escape(e=None):
     stop_dizzy()
     try:
         root.destroy()
-    except:
+    except Exception:
         pass
 
 
@@ -1791,7 +1995,8 @@ class AudioSettingsOverlay:
         self.music_scale.place(x=18, y=58)
 
         # ✅ SFX
-        self.canvas.create_text(18, 92, text="SFX (ORTAM SESLERI)", anchor="w", fill="#cfd6ff", font=("Segoe UI Semibold", 9, "bold"))
+        self.canvas.create_text(18, 92, text="SFX (ORTAM SESLERI)", anchor="w", fill="#cfd6ff",
+                                font=("Segoe UI Semibold", 9, "bold"))
         self.sfx_value_id = self.canvas.create_text(300, 92, text=f"{sfx_volume_percent}%", anchor="e", fill="white",
                                                     font=("Segoe UI Semibold", 9, "bold"))
         self.sfx_scale = tk.Scale(self.panel, from_=0, to=100, orient="horizontal", length=190, showvalue=0,
@@ -1814,12 +2019,12 @@ class AudioSettingsOverlay:
     def lift(self):
         try:
             self.btn.tkraise()
-        except:
+        except Exception:
             pass
         if self.opened:
             try:
                 self.panel.tkraise()
-            except:
+            except Exception:
                 pass
 
     def _update_labels(self):
@@ -1984,73 +2189,14 @@ class InventoryOverlay:
     def lift(self):
         try:
             self.btn.tkraise()
-        except:
+        except Exception:
             pass
         if self.opened:
             try:
                 self.panel.tkraise()
-            except:
+            except Exception:
                 pass
 
-
-
-# ----------------------------
-# Menu overlay helpers (logo-only)
-# ----------------------------
-def _hide_menu_logo_only():
-    global menu_logo_label, menu_logo_img
-    try:
-        if menu_logo_label:
-            menu_logo_label.place_forget()
-    except:
-        pass
-
-def _show_menu_logo_only():
-    """
-    Ana menü / dil seçimi ekranında: sadece logo görünsün,
-    oyun canvas (mavi pencere) görünmesin.
-    """
-    global menu_logo_label, menu_logo_img
-
-    # canvas'ı tamamen gizle
-    try:
-        carousel_canvas.place_forget()
-    except:
-        pass
-
-    # logo label'ı oluştur/yerleştir
-    if menu_logo_label is None:
-        menu_logo_label = tk.Label(root, bg=BG_COLOR, bd=0)
-    # logo görselini yükle
-    try:
-        logo = load_photo_fit("images/logo.png", 1500, 540, _img_cache)
-    except:
-        logo = None
-    menu_logo_img = logo
-    if logo:
-        menu_logo_label.config(image=logo)
-        menu_logo_label.image = logo
-    else:
-        menu_logo_label.config(text="02:17", fg="white", font=("Segoe UI Semibold", 34, "bold"))
-
-    sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
-    # logoyu yukarı merkeze değil, görseldeki gibi orta-üstte konumla
-    menu_logo_label.place(relx=0.5, rely=0.30, anchor="center")
-
-def _enter_game_view():
-    """
-    Dil seçildikten sonra oyun 'pencere/canvas' alanını geri aç.
-    """
-    _hide_menu_logo_only()
-    # canvas'ı tekrar göster (default triptych pozisyonu)
-    try:
-        carousel_canvas.place(relx=0.5, y=30, anchor="n")
-    except:
-        pass
-
-# ----------------------------
-# Main screen show/hide helpers
-# ----------------------------
 
 # ============================================================
 # ✅ MAIN MENU: [ GALLERY ] [ BAŞLA ] [ AYARLAR ] [+ ÇIKIŞ]
@@ -2060,14 +2206,11 @@ def show_main_menu():
     stop_sfx_loop()
     stop_flicker()
     stop_dizzy()
-    set_canvas_triptych_mode()
 
     _show_menu_logo_only()
 
     bg_label.place(x=0, y=0, relwidth=1, relheight=1)
     bg_label.lower()
-
-    _show_menu_logo_only()
 
     card.pack(padx=30, pady=(600, 22), fill="x")
     story_label.config(text="02:17\n\nAna Menü")
@@ -2076,7 +2219,7 @@ def show_main_menu():
         try:
             audio_ui.open()
             audio_ui.lift()
-        except:
+        except Exception:
             pass
 
     choice_buttons[0].config(text="GALLERY", command=show_gallery, state="normal")
@@ -2087,13 +2230,13 @@ def show_main_menu():
     try:
         if not choice_containers[3].winfo_ismapped():
             choice_containers[3].pack(side="left", padx=44)
-    except:
+    except Exception:
         pass
 
     audio_ui.lift()
     try:
         inv_ui.lift()
-    except:
+    except Exception:
         pass
 
 
@@ -2102,7 +2245,6 @@ def show_language_screen():
     stop_sfx_loop()
     stop_flicker()
     stop_dizzy()
-    set_canvas_triptych_mode()
 
     bg_label.place(x=0, y=0, relwidth=1, relheight=1)
     bg_label.lower()
@@ -2113,25 +2255,25 @@ def show_language_screen():
     story_label.config(text="Select Language / Dil Seç")
 
     choice_buttons[0].config(text="English", command=set_english, state="normal")
-    choice_buttons[1].config(text="Türkçe", command=set_turkish, state="normal")
+    choice_buttons[1].config(text="Türkçe", command=set_turkish, state=("normal" if STORY_TR else "disabled"))
     choice_buttons[2].config(text="Geri (Ana Menü)", command=show_main_menu, state="normal")
     choice_buttons[3].config(text="", state="disabled")
     try:
         choice_containers[3].pack_forget()
-    except:
+    except Exception:
         pass
 
     audio_ui.lift()
     try:
         inv_ui.lift()
-    except:
+    except Exception:
         pass
 
 
 def start_main_after_splash(splash):
     try:
         splash.destroy()
-    except:
+    except Exception:
         pass
 
     root.deiconify()
@@ -2242,7 +2384,7 @@ def open_jump_dialog(e=None):
         if sid:
             try:
                 win.grab_release()
-            except:
+            except Exception:
                 pass
             win.destroy()
             go_to(sid)
@@ -2350,7 +2492,7 @@ story_label.pack(padx=22, pady=(18, 16))
 
 choices_row = tk.Frame(card, bg=BG_COLOR)
 choices_row.pack(pady=(0, 18))
-("images/logo.png", 900, 360, _img_cache)
+
 choice_buttons = []
 choice_borders = []
 choice_containers = []
@@ -2372,10 +2514,8 @@ for _i in range(4):
 
     bind_border_hover(btn, border)
 
-choice_buttons[0].config(text="", state="disabled")
-choice_buttons[1].config(text="", state="disabled")
-choice_buttons[2].config(text="", state="disabled")
-choice_buttons[3].config(text="", state="disabled")
+for b in choice_buttons:
+    b.config(text="", state="disabled")
 
 audio_ui = AudioSettingsOverlay(root, x=18, y=18)
 inv_ui = InventoryOverlay(root, x=90, y=18)
@@ -2386,7 +2526,7 @@ inv_ui.lift()
 
 try:
     _ensure_click_assets()
-except:
+except Exception:
     pass
 
 # Start
