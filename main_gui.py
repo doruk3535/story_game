@@ -11,6 +11,7 @@ IMAGE_TOKEN = "##"  # hide/ignore in text
 #    - "|||" -> page break: stop, wait SPACE, clear screen, continue
 
 import tkinter as tk
+import tkinter.font as tkfont
 import os
 import math
 import time
@@ -21,15 +22,28 @@ import json
 import random
 import re
 
+import threading
+import queue
+print("[main_gui] overlay_steps patch v3 loaded")
+
 # ============================
 # ✅ PAGEBREAK SYSTEM
 # ============================
 PAGEBREAK_TOKEN = "|||"  # pagebreak/wait token
 PAUSE_CHAR = "□"  # 1 kare = 1 saniye bekleme (metinde görünmez)
+OVERLAY_TOKEN = "Ξ"  # ardışık overlay görsel tokenı (ortaya ekler)
+_overlay_step_points = []
+_overlay_step_fired = set()
 PAUSE_MS_PER_CHAR = 1000
 waiting_pagebreak = False
 _pagebreak_continue_cb = None
 
+
+
+# ✅ SPACE spam guard
+SPACE_COOLDOWN_MS = 500  # min time between SPACE presses
+_last_space_ts = 0.0
+_space_down = False  # prevents key-repeat when holding space
 
 class GameState:
     def __init__(self):
@@ -120,6 +134,346 @@ try:
 except Exception:
     PIL_OK = False
 
+# ============================================================
+# ✅ VIDEO (MP4/MOV) SUPPORT for single_focus (hero)
+# - Uses imageio + imageio-ffmpeg (no system ffmpeg needed)
+# - Updates the EXISTING hero canvas item (no stacking)
+# - Stops/cleans up on every scene change
+# ============================================================
+VIDEO_OK = True
+try:
+    import imageio.v2 as imageio  # imageio>=2
+except Exception:
+    try:
+        import imageio  # fallback
+    except Exception as _e:
+        VIDEO_OK = False
+        imageio = None
+        print("[VIDEO] imageio not available:", _e)
+
+# ----------------------------
+# ✅ VIDEO (MP4/MOV) PLAYBACK (thread-buffered, fast-start, no UI freeze)
+#    Scene usage example:
+#      "video": {"path": "images/portal_anim/portal.mp4", "fps": 24, "loop": True}
+# ----------------------------
+
+# Video state
+_video_cfg = None
+_video_active_scene = None
+
+_video_job = None               # tk after() id for UI tick
+_video_thread = None            # background decoder thread
+_video_stop_evt = None          # signals decoder to stop
+_video_queue = None             # queue of PIL Images (resized)
+_video_pil_frames = []          # cached PIL frames for looping
+_video_frame_i = 0              # playback index
+_video_loaded_all = False
+_video_started = False
+
+_video_target_ms = 42           # derived from fps
+_video_photo_ref = None         # keep last PhotoImage alive
+
+
+# Defaults / caps
+VIDEO_MAX_FRAMES_DEFAULT = 480          # safety cap (~20s @24fps)
+VIDEO_START_BUFFER_DEFAULT = 12          # start after N frames buffered (higher = smoother start)          # start after N frames buffered
+VIDEO_QUEUE_MAX_DEFAULT = 64            # decoded frames queue cap            # how many decoded frames can wait in queue
+
+
+def stop_video():
+    """Stop video playback, stop decoder thread, clear buffers."""
+    global _video_cfg, _video_active_scene
+    global _video_job, _video_thread, _video_stop_evt
+    global _video_queue, _video_pil_frames, _video_frame_i
+    global _video_loaded_all, _video_started, _video_photo_ref
+
+    _video_cfg = None
+    _video_active_scene = None
+
+    # cancel UI tick
+    try:
+        if _video_job is not None and root is not None:
+            root.after_cancel(_video_job)
+    except Exception:
+        pass
+    _video_job = None
+
+    # stop decoder
+    try:
+        if _video_stop_evt is not None:
+            _video_stop_evt.set()
+    except Exception:
+        pass
+
+    # join briefly (don't freeze UI)
+    try:
+        if _video_thread is not None and _video_thread.is_alive():
+            _video_thread.join(timeout=0.05)
+    except Exception:
+        pass
+
+    _video_thread = None
+    _video_stop_evt = None
+
+    # clear queue/buffers
+    _video_queue = None
+    _video_pil_frames = []
+    _video_frame_i = 0
+    _video_loaded_all = False
+    _video_started = False
+    _video_photo_ref = None
+
+
+def _video_worker(path_abs: str, target_w: int, target_h: int,
+                 stop_evt, out_q, loop: bool, max_frames: int, resize_mode: str = "fast"):
+    """
+    Decode video frames off the Tk thread.
+    Push resized PIL Images into out_q.
+    """
+    reader = None
+    frames_decoded = 0
+
+    # pick resize filter (fast vs high quality)
+    if PIL_OK:
+        if resize_mode == "high":
+            _resample = Image.LANCZOS
+        else:
+            _resample = Image.BILINEAR
+    else:
+        _resample = None
+
+    try:
+        if not VIDEO_OK:
+            return
+        reader = imageio.get_reader(path_abs)
+
+        while not stop_evt.is_set():
+            # decode sequentially; if loop, reopen when done
+            idx = 0
+            while not stop_evt.is_set():
+                try:
+                    fr = reader.get_data(idx)
+                except Exception:
+                    break  # end or error
+                idx += 1
+
+                try:
+                    if not PIL_OK:
+                        continue
+                    im = Image.fromarray(fr)
+                    if im.mode != "RGBA":
+                        im = im.convert("RGBA")
+
+                    w, h = im.size
+                    if w <= 0 or h <= 0:
+                        continue
+
+                    # scale-to-fit preserving aspect
+                    scale = min(target_w / w, target_h / h)
+                    nw = max(1, int(w * scale))
+                    nh = max(1, int(h * scale))
+                    im = im.resize((nw, nh), _resample)
+
+                    # enqueue (drop oldest if full to keep it moving)
+                    put_ok = False
+                    for _ in range(2):
+                        try:
+                            out_q.put(im, timeout=0.05)
+                            put_ok = True
+                            break
+                        except Exception:
+                            # queue full -> drop one
+                            try:
+                                out_q.get_nowait()
+                            except Exception:
+                                pass
+
+                    if put_ok:
+                        frames_decoded += 1
+                        if frames_decoded >= max_frames:
+                            return
+                except Exception:
+                    # ignore a bad frame
+                    pass
+
+            if not loop:
+                return
+
+            # loop: reopen reader
+            try:
+                if reader is not None:
+                    reader.close()
+            except Exception:
+                pass
+            reader = None
+            try:
+                reader = imageio.get_reader(path_abs)
+            except Exception:
+                return
+
+    finally:
+        try:
+            if reader is not None:
+                reader.close()
+        except Exception:
+            pass
+
+
+def _apply_pil_to_hero(im_pil):
+    """Convert PIL Image -> PhotoImage and apply to hero item."""
+    global _video_photo_ref
+    if im_pil is None or not PIL_OK:
+        return
+    try:
+        ph = ImageTk.PhotoImage(im_pil)
+        _video_photo_ref = ph
+        if hero_item_id:
+            carousel_canvas.itemconfig(hero_item_id, image=ph, state="normal")
+        else:
+            w = int(carousel_canvas.cget("width"))
+            h = int(carousel_canvas.cget("height"))
+            carousel_canvas.create_image(w // 2, h // 2, image=ph, tags=("hero",))
+        tmp_refs["hero_video"] = ph
+    except Exception:
+        pass
+
+
+def start_video(cfg: dict, scene_id: str):
+    """
+    Start video playback without freezing the UI.
+    Frames are decoded in a background thread and pushed via a queue.
+    """
+    global _video_cfg, _video_active_scene, _video_target_ms
+    global _video_thread, _video_stop_evt, _video_queue
+    global _video_pil_frames, _video_frame_i, _video_loaded_all, _video_started
+
+    stop_video()
+
+    if not VIDEO_OK or not PIL_OK or not isinstance(cfg, dict):
+        return
+
+    rel_path = cfg.get("path") or cfg.get("file") or cfg.get("src")
+    if not rel_path:
+        return
+
+    ap = abs_path(str(rel_path))
+    if not os.path.exists(ap):
+        print("[VIDEO] missing:", ap)
+        return
+
+    # fps -> ms
+    fps = cfg.get("fps", 24)
+    try:
+        fps = float(fps)
+    except Exception:
+        fps = 24.0
+    fps = max(1.0, min(60.0, fps))
+    _video_target_ms = max(10, int(1000.0 / fps))
+
+    loop = bool(cfg.get("loop", True))
+
+    # buffers/caps
+    start_buf = cfg.get("start_buffer", VIDEO_START_BUFFER_DEFAULT)
+    try:
+        start_buf = int(start_buf)
+    except Exception:
+        start_buf = VIDEO_START_BUFFER_DEFAULT
+    start_buf = max(1, min(60, start_buf))
+
+    max_frames = cfg.get("max_frames", VIDEO_MAX_FRAMES_DEFAULT)
+    try:
+        max_frames = int(max_frames)
+    except Exception:
+        max_frames = VIDEO_MAX_FRAMES_DEFAULT
+    max_frames = max(24, min(5000, max_frames))
+
+    qmax = cfg.get("queue_max", VIDEO_QUEUE_MAX_DEFAULT)
+    try:
+        qmax = int(qmax)
+    except Exception:
+        qmax = VIDEO_QUEUE_MAX_DEFAULT
+    qmax = max(8, min(240, qmax))
+
+    resize_mode = str(cfg.get("quality", "fast")).lower()  # "fast" | "high"
+
+    # target size from HERO canvas
+    try:
+        target_w = int(carousel_canvas.cget("width"))
+        target_h = int(carousel_canvas.cget("height"))
+    except Exception:
+        target_w, target_h = 1200, 700
+
+    _video_cfg = dict(cfg)
+    _video_active_scene = str(scene_id)
+
+    _video_queue = queue.Queue(maxsize=qmax)
+    _video_pil_frames = []
+    _video_frame_i = 0
+    _video_loaded_all = False
+    _video_started = False
+
+    _video_stop_evt = threading.Event()
+    _video_thread = threading.Thread(
+        target=_video_worker,
+        args=(ap, target_w, target_h, _video_stop_evt, _video_queue, loop, max_frames, resize_mode),
+        daemon=True
+    )
+    _video_thread.start()
+
+    # UI tick (pull from queue, cache, display)
+    def _tick():
+        global _video_job, _video_frame_i, _video_loaded_all, _video_started
+
+        if not _video_cfg:
+            _video_job = None
+            return
+
+        # scene changed? stop
+        if _video_active_scene is not None and str(current) != str(_video_active_scene):
+            stop_video()
+            return
+
+        # pull all currently available frames (fast, non-blocking)
+        pulled = 0
+        while True:
+            try:
+                im = _video_queue.get_nowait()
+            except Exception:
+                break
+            _video_pil_frames.append(im)
+            pulled += 1
+
+        # if decoder thread ended, mark loaded_all
+        try:
+            if _video_thread is not None and (not _video_thread.is_alive()) and (_video_queue is None or _video_queue.empty()):
+                _video_loaded_all = True
+        except Exception:
+            pass
+
+        # start once buffer ready (or at least 1 frame)
+        if (not _video_started) and (_video_pil_frames):
+            if (len(_video_pil_frames) >= start_buf) or _video_loaded_all:
+                _video_started = True
+
+        if _video_started and _video_pil_frames:
+            loop_local = bool(_video_cfg.get("loop", True))
+
+            if (not loop_local) and _video_loaded_all and _video_frame_i >= (len(_video_pil_frames) - 1):
+                _video_frame_i = len(_video_pil_frames) - 1
+            idx = _video_frame_i % len(_video_pil_frames) if loop_local else min(_video_frame_i, len(_video_pil_frames) - 1)
+
+            _apply_pil_to_hero(_video_pil_frames[idx])
+
+            if (not loop_local) and _video_loaded_all and _video_frame_i >= (len(_video_pil_frames) - 1):
+                _video_job = None
+                return
+
+            _video_frame_i += 1
+
+        # schedule next tick
+        _video_job = root.after(_video_target_ms, _tick)
+
+    _tick()
 
 # ----------------------------
 # Import story (robust)
@@ -568,6 +922,7 @@ index = 0
 click_count = 0
 typing_done = True
 _auto_next_scheduled = False
+_auto_next_job = None
 # Segmented flow state
 segments = []
 seg_i = 0
@@ -642,9 +997,13 @@ _flicker_running = False
 _flicker_job = None
 _flicker_slot = None
 
+# ✅ HERO flicker (single_focus)
+_hero_flicker_running = False
+_hero_flicker_job = None
+
 
 def stop_flicker():
-    global _flicker_running, _flicker_job, _flicker_slot
+    global _flicker_running, _flicker_job, _flicker_slot, _hero_flicker_running, _hero_flicker_job
     _flicker_running = False
     _flicker_slot = None
     if _flicker_job is not None and root is not None:
@@ -653,6 +1012,16 @@ def stop_flicker():
         except Exception:
             pass
     _flicker_job = None
+
+    # ✅ stop HERO flicker (single_focus)
+    _hero_flicker_running = False
+    if _hero_flicker_job is not None and root is not None:
+        try:
+            root.after_cancel(_hero_flicker_job)
+        except Exception:
+            pass
+    _hero_flicker_job = None
+
 
 
 def _intensity_params(intensity: str):
@@ -978,6 +1347,65 @@ def try_start_dizzy_hero(img_path: str):
     step(0)
 
 
+def try_start_flicker_hero(img_path: str):
+    """✅ Flicker effect for single_focus HERO image.
+    Works on carousel_canvas + hero_item_id (same as dizzy_hero)."""
+    global _flicker_cfg, _hero_flicker_running, _hero_flicker_job, hero_item_id
+
+    if not _flicker_cfg or _hero_flicker_running or not hero_item_id:
+        return
+
+    # treat HERO as slot C (index 2)
+    want_slot = str(_flicker_cfg.get("slot", "") or "").upper().strip()
+    want_index = int(_flicker_cfg.get("index", 0) or 0)
+    if want_slot not in ("C", ""):
+        return
+    if want_index not in (0, 2):
+        return
+
+    intensity = str(_flicker_cfg.get("intensity", "medium"))
+    w = int(carousel_canvas.cget("width"))
+    h = int(carousel_canvas.cget("height"))
+
+    frames = _build_flicker_frames_fit(img_path, w, h, intensity) if PIL_OK else None
+    if frames:
+        tmp_refs["hero_flicker_frames"] = frames
+
+    params = _intensity_params(intensity)
+    _hero_flicker_running = True
+
+    def step():
+        global _hero_flicker_job, _hero_flicker_running
+        if not _hero_flicker_running:
+            return
+
+        delay = random.randint(params["min_ms"], params["max_ms"])
+
+        if frames:
+            if random.random() < params["blink_chance"]:
+                fr = frames[3]
+            else:
+                fr = random.choice(frames[:3])
+            try:
+                carousel_canvas.itemconfig(hero_item_id, image=fr)
+                tmp_refs["hero_img"] = fr
+            except Exception:
+                pass
+        else:
+            # no PIL: just occasional hide/show by swapping to blank
+            try:
+                if random.random() < params["blink_chance"]:
+                    carousel_canvas.itemconfig(hero_item_id, state="hidden")
+                    root.after(max(30, int(params["min_ms"] / 2)), lambda: carousel_canvas.itemconfig(hero_item_id, state="normal"))
+            except Exception:
+                pass
+
+        _hero_flicker_job = root.after(delay, step)
+
+    step()
+
+
+
 def load_photo_fit(path, target_w, target_h, cache_dict):
     if not path:
         return None
@@ -1071,6 +1499,12 @@ def split_text_into_segments(txt: str):
             i += len(IMAGE_TOKEN)
             continue
 
+        if s.startswith(OVERLAY_TOKEN, i):
+            flush()
+            out.append(OVERLAY_TOKEN)
+            i += len(OVERLAY_TOKEN)
+            continue
+
         if s.startswith("||", i):
             flush()
             i += 2
@@ -1121,6 +1555,10 @@ def set_canvas_hero_mode(custom_w=None, custom_h=None):
 # Carousel helpers
 # ----------------------------
 def carousel_clear():
+    try:
+        stop_video()
+    except Exception:
+        pass
     global hero_item_id, hero_img_path
     carousel_canvas.delete("all")
     for k in ("L", "C", "R"):
@@ -1129,6 +1567,14 @@ def carousel_clear():
     tmp_refs.clear()
     hero_item_id = None
     hero_img_path = None
+    # clear overlays
+    global hero_overlay_items, hero_overlay_refs, _overlay_queue, _overlay_i, _overlay_step_points, _overlay_step_fired
+    hero_overlay_items = []
+    hero_overlay_refs = []
+    _overlay_queue = []
+    _overlay_i = 0
+    _overlay_step_points = []
+    _overlay_step_fired = set()
 
 
 def place_slot(slot_key, photo, x, y):
@@ -1159,28 +1605,134 @@ def show_logo_on_canvas():
 
 
 def show_single_big_image(img_path: str):
+    """Show a single (hero) image without briefly blanking the canvas.
+
+    Key idea: DO NOT call carousel_clear() before loading the new image.
+    We first load the PhotoImage, then swap the existing hero item (if any).
+    This prevents the user from seeing the dark background for a moment,
+    especially when a video scene is about to start.
+    """
     global hero_item_id, hero_img_path
-    carousel_clear()
+    global hero_overlay_items, hero_overlay_refs, _overlay_queue, _overlay_i, _overlay_step_points, _overlay_step_fired
+
+    # Stop any running video (but do not clear canvas)
+    try:
+        stop_video()
+    except Exception:
+        pass
+
+    # Stop effects tied to the previous hero (but keep the image visible)
+    try:
+        stop_flicker()
+    except Exception:
+        pass
+    try:
+        stop_dizzy()
+    except Exception:
+        pass
 
     w = int(carousel_canvas.cget("width"))
     h = int(carousel_canvas.cget("height"))
 
+    # If scene has no image path, keep the current hero image if it exists
     if not img_path:
-        carousel_canvas.create_text(w // 2, h // 2, text="NO IMAGE",
-                                   fill="white", font=("Segoe UI Semibold", 18, "bold"))
+        if hero_item_id is not None:
+            return
+        carousel_canvas.create_text(
+            w // 2, h // 2,
+            text="NO IMAGE",
+            fill="white",
+            font=("Segoe UI Semibold", 18, "bold"),
+        )
         return
 
-    hero_img_path = img_path
+    # Pre-load the image FIRST (so we don't blank the screen while loading)
     photo = load_photo_fit(img_path, w, h, _img_cache)
-    if photo:
-        hero_item_id = carousel_canvas.create_image(w // 2, h // 2, image=photo)
-        tmp_refs["hero_img"] = photo
-        try_start_dizzy_hero(img_path)
+
+    if not photo:
+        # If we already have something on screen, keep it (avoid ugly flash)
+        if hero_item_id is not None:
+            print("[IMG] failed to load, keeping previous:", img_path)
+            return
+        carousel_canvas.create_text(
+            w // 2, h // 2,
+            text="IMAGE LOAD ERROR",
+            fill="white",
+            font=("Segoe UI Semibold", 18, "bold"),
+        )
+        return
+
+    # If we are coming from triptych mode and no hero item exists, clear AFTER we have the image ready
+    if hero_item_id is None:
+        try:
+            any_slot = any(slot_items.get(k) is not None for k in ("L", "C", "R"))
+        except Exception:
+            any_slot = False
+        if any_slot:
+            # Clear triptych items fast; we already have 'photo' ready, so no visible blank
+            carousel_canvas.delete("all")
+            for k in ("L", "C", "R"):
+                slot_items[k] = None
+                slot_images[k] = None
+            tmp_refs.clear()
+
+    # Clear overlay items (do not touch base hero item)
+    try:
+        for it in list(hero_overlay_items):
+            try:
+                carousel_canvas.delete(it)
+            except Exception:
+                pass
+        hero_overlay_items.clear()
+        hero_overlay_refs.clear()
+        _overlay_queue = []
+        _overlay_i = 0
+        _overlay_step_points = []
+        _overlay_step_fired = set()
+    except Exception:
+        pass
+
+    # Swap hero image (no blank)
+    hero_img_path = img_path
+    cx, cy = w // 2, h // 2
+    if hero_item_id is None:
+        hero_item_id = carousel_canvas.create_image(cx, cy, image=photo)
     else:
-        carousel_canvas.create_text(w // 2, h // 2, text="IMAGE LOAD ERROR",
-                                   fill="white", font=("Segoe UI Semibold", 18, "bold"))
+        try:
+            carousel_canvas.itemconfig(hero_item_id, image=photo)
+            carousel_canvas.coords(hero_item_id, cx, cy)
+        except Exception:
+            # If canvas item is invalid, recreate safely
+            try:
+                hero_item_id = carousel_canvas.create_image(cx, cy, image=photo)
+            except Exception:
+                pass
+
+    tmp_refs["hero_img"] = photo
+
+    # Restart effects for this hero image (if enabled)
+    try:
+        try_start_dizzy_hero(img_path)
+    except Exception:
+        pass
+    try:
+        try_start_flicker_hero(img_path)
+    except Exception:
+        pass
 
 
+
+
+
+def _trigger_overlay_if_any():
+    """Trigger next overlay image (single_focus) if configured."""
+    try:
+        if 'hero_pop_next_overlay' in globals():
+            hero_pop_next_overlay()
+            return True
+    except Exception as _e:
+        print("[OVERLAY] trigger error:", _e)
+    return False
 
 
 def pop_in_hero(img_path: str, duration_ms=POP_MS, frames=POP_FRAMES, on_done=None):
@@ -1189,7 +1741,8 @@ def pop_in_hero(img_path: str, duration_ms=POP_MS, frames=POP_FRAMES, on_done=No
     - PIL yoksa: normal yükler
     """
     global hero_item_id, hero_img_path
-    carousel_clear()
+    # NOTE: We intentionally do NOT clear the canvas here.
+    # We prepare the first frame first, then swap, to avoid background flashes.
 
     w = int(carousel_canvas.cget("width"))
     h = int(carousel_canvas.cget("height"))
@@ -1242,6 +1795,12 @@ def pop_in_hero(img_path: str, duration_ms=POP_MS, frames=POP_FRAMES, on_done=No
             canvas.paste(fr, (ox, oy), fr)
             frames_list.append(ImageTk.PhotoImage(canvas))
 
+        # Swap hero without blanking: remove previous hero only after first frame is ready
+        try:
+            if hero_item_id is not None:
+                carousel_canvas.delete(hero_item_id)
+        except Exception:
+            pass
         hero_item_id = carousel_canvas.create_image(w // 2, h // 2, image=frames_list[0])
         tmp_refs["hero_pop_frames"] = frames_list
         tmp_refs["hero_pop_item"] = hero_item_id
@@ -1255,6 +1814,10 @@ def pop_in_hero(img_path: str, duration_ms=POP_MS, frames=POP_FRAMES, on_done=No
                 carousel_canvas.itemconfig(hero_item_id, image=frames_list[-1])
                 try:
                     try_start_dizzy_hero(img_path)
+                except Exception:
+                    pass
+                try:
+                    try_start_flicker_hero(img_path)
                 except Exception:
                     pass
                 if on_done:
@@ -1274,6 +1837,114 @@ def pop_in_hero(img_path: str, duration_ms=POP_MS, frames=POP_FRAMES, on_done=No
         show_single_big_image(img_path)
         if on_done:
             on_done()
+
+def hero_add_overlay_center(img_path: str, scale=1.0):
+    """Canvas ortasına bir overlay görsel ekler (üst üste binebilir)."""
+    global hero_overlay_items, hero_overlay_refs
+    if not img_path:
+        return
+    w = int(carousel_canvas.cget("width"))
+    h = int(carousel_canvas.cget("height"))
+    # overlay boyutu: canvas'ın belirli oranı
+    if float(scale) >= 0.99:
+        ow, oh = w, h
+    else:
+        ow = max(200, int(w * float(scale)))
+        oh = max(200, int(h * float(scale)))
+
+    photo = load_photo_fit(img_path, ow, oh, _img_cache)
+    if not photo:
+        return
+    item = carousel_canvas.create_image(w // 2, h // 2, image=photo)
+    hero_overlay_items.append(item)
+    hero_overlay_refs.append(photo)
+    # üstte kalsın
+    try:
+        carousel_canvas.tag_raise(item)
+    except Exception:
+        pass
+
+def hero_replace_overlay_image(img_path: str):
+    """Ξ token: mevcut hero görseli OVERWRITE eder (üst üste bindirme yok)."""
+    if not img_path:
+        return
+    # Canvas'ta yalnızca tek hero görsel kalsın
+    try:
+        carousel_canvas.delete("hero")
+    except Exception:
+        pass
+    try:
+        # önceki anim/overlay reflerini temizle
+        hero_overlay_items.clear()
+        hero_overlay_refs.clear()
+    except Exception:
+        pass
+
+    w = int(carousel_canvas.cget("width"))
+    h = int(carousel_canvas.cget("height"))
+    photo = load_photo_fit(img_path, w, h, _img_cache)
+    if not photo:
+        return
+
+    global hero_item_id, hero_img_path
+    hero_img_path = img_path
+
+    if hero_item_id:
+        try:
+            carousel_canvas.itemconfig(hero_item_id, image=photo)
+            carousel_canvas.coords(hero_item_id, w // 2, h // 2)
+            carousel_canvas.addtag_withtag("hero", hero_item_id)
+        except Exception:
+            hero_item_id = None
+
+    if not hero_item_id:
+        hero_item_id = carousel_canvas.create_image(w // 2, h // 2, image=photo, tags=("hero",))
+
+        tmp_refs["hero_img"] = photo
+
+    # ✅ Flicker support in single_focus (treat hero as CENTER slot "C")
+    try:
+        slot_items["C"] = hero_item_id
+        slot_images["C"] = photo
+    except Exception:
+        pass
+    try:
+        if not _dizzy_cfg:
+            try_start_flicker("C", img_path)
+    except Exception:
+        pass
+
+    try:
+        try_start_dizzy_hero(img_path)
+        try:
+            try_start_flicker_hero(img_path)
+        except Exception:
+            pass
+    except Exception:
+        pass
+def hero_pop_next_overlay():
+    global _overlay_queue, _overlay_i
+    if not _overlay_queue:
+        return
+    while _overlay_i < len(_overlay_queue):
+        p = _overlay_queue[_overlay_i]
+        _overlay_i += 1
+        try:
+            ap = abs_path(p)
+            ex = os.path.exists(ap)
+            print('[OVERLAY] replace:', p, 'exists=' + str(ex))
+            if not ex:
+                continue
+            hero_replace_overlay_image(p)
+            return
+        except Exception as _e:
+            print("[OVERLAY] error:", _e)
+            continue
+
+
+
+
+
 def pop_in_to_slot(slot_key, path, x, y, duration_ms=POP_MS, frames=POP_FRAMES, on_done=None):
     if not path:
         if on_done:
@@ -1387,14 +2058,105 @@ def disable_choices():
         b.config(state="disabled")
 
 
+def hide_choices_ui():
+    """Hide all choice buttons/containers (used while text is typing / during scene play)."""
+    for cf in choice_containers:
+        try:
+            cf.pack_forget()
+        except Exception:
+            pass
+
+
+def show_choices_ui(indices):
+    """Show only specified choice container indices (0..3)."""
+    for idx in indices:
+        try:
+            choice_containers[idx].pack(side="left", padx=44)
+        except Exception:
+            pass
+
+
 def go_to(scene_id):
+    try:
+        stop_video()
+    except Exception:
+        pass
     global current
+    cancel_auto_next()
     stop_clicks()
     if story and scene_id in story:
         current = scene_id
         load_scene()
     else:
         print("[GO_TO ERROR] missing scene:", scene_id)
+
+
+def cancel_auto_next():
+    """Cancel any scheduled auto-next transition."""
+    global _auto_next_job, _auto_next_scheduled
+    _auto_next_scheduled = False
+    if _auto_next_job is not None and root is not None:
+        try:
+            root.after_cancel(_auto_next_job)
+        except Exception:
+            pass
+    _auto_next_job = None
+
+
+def schedule_auto_next_after_scene():
+    """If current scene requests auto_next AFTER scene finishes, schedule it and return True."""
+    global _auto_next_job, _auto_next_scheduled
+
+    if _auto_next_scheduled:
+        return True
+
+    if not scene:
+        return False
+
+    nxt = scene.get("auto_next")
+    if not nxt:
+        return False
+
+    wants_after = bool(scene.get("auto_next_after", False)) or ("auto_next_delay_ms" in scene)
+    if not wants_after:
+        return False
+
+    if not story or nxt not in story:
+        print("[AUTO_NEXT] target not found:", nxt, "from", current)
+        return False
+
+    # don't auto-next while waiting for pagebreak continue
+    try:
+        if waiting_pagebreak:
+            return False
+    except Exception:
+        pass
+
+    delay = int(scene.get("auto_next_delay_ms", 0) or scene.get("auto_delay_ms", 0) or 0)
+
+    # hide choices while waiting
+    try:
+        hide_choices_ui()
+        disable_choices()
+    except Exception:
+        pass
+
+    cancel_auto_next()
+    _auto_next_scheduled = True
+
+    sid = str(current)
+
+    def _go():
+        global _auto_next_job, _auto_next_scheduled
+        _auto_next_job = None
+        _auto_next_scheduled = False
+        # if scene changed, ignore
+        if str(current) != sid:
+            return
+        go_to(nxt)
+
+    _auto_next_job = root.after(max(0, delay), _go)
+    return True
 
 
 # Typewriter
@@ -1415,6 +2177,7 @@ def start_typewriter(text, on_done=None, clear_first=True):
         cur = story_label.cget("text")
         if cur.strip():
             story_label.config(text=cur + "\n")
+    hide_choices_ui()
 
     disable_choices()
     type_step()
@@ -1425,6 +2188,17 @@ def type_step():
 
     if index < len(full_text):
         ch = full_text[index]
+
+        # ✅ INLINE OVERLAY TOKEN: allow "ΞHademe..." inside the same segment
+        if ch == OVERLAY_TOKEN:
+            try:
+                _trigger_overlay_if_any()
+            except Exception as _e:
+                print("[OVERLAY] inline error:", _e)
+            index += 1
+            # continue immediately without printing the token
+            root.after(0, type_step)
+            return
 
         # ✅ PAUSE: "□" karakteri gördüğünde 1 saniye bekle (kare yazılmaz)
         if ch == PAUSE_CHAR:
@@ -1482,6 +2256,10 @@ def play_text_segments_only(seg_list):
     def finish_all():
         if sfx_started_this_scene and not scene.get("keep_sfx_after_scene", False) and scene.get("end_sound") != "ambience":
             stop_sfx_loop()
+        if schedule_auto_next_after_scene():
+            return
+        if schedule_auto_next_after_scene():
+            return
 
         show_buttons_for_scene()
 
@@ -1494,6 +2272,20 @@ def play_text_segments_only(seg_list):
             finish_all()
             return
 
+
+        # ✅ token-free overlay trigger: if current step index matches overlay_at_steps
+        try:
+            global _overlay_step_points, _overlay_step_fired
+            cur_step = seg_i
+            if isinstance(_overlay_step_points, list) and _overlay_step_points:
+                # allow multiple triggers at same step
+                cnt = _overlay_step_points.count(cur_step)
+                if cnt > 0 and cur_step not in _overlay_step_fired:
+                    for _ in range(cnt):
+                        hero_pop_next_overlay()
+                    _overlay_step_fired.add(cur_step)
+        except Exception as _e:
+            print("[overlay_steps] trigger error:", _e)
         part = segments[seg_i]
         seg_i += 1
 
@@ -1501,7 +2293,14 @@ def play_text_segments_only(seg_list):
             _enter_pagebreak(lambda: root.after(HOOK_MS, write_next))
             return
         if part == IMAGE_TOKEN:
-            # ignore image tokens in text-only flow
+            # hero/text-only: IMAGE_TOKEN'u yok say (istersen ileride hero image swap yapılabilir)
+            root.after(HOOK_MS, write_next)
+            return
+        if part == OVERLAY_TOKEN:
+            try:
+                hero_pop_next_overlay()
+            except Exception:
+                pass
             root.after(HOOK_MS, write_next)
             return
 
@@ -1591,6 +2390,10 @@ def play_scene_segment_flow(img_list, seg_list):
         if text_part == IMAGE_TOKEN:
             pop_next_image(lambda: root.after(HOOK_MS, write_next_segment))
             return
+        if text_part == OVERLAY_TOKEN:
+            # triptych modda overlay yok say
+            root.after(HOOK_MS, write_next_segment)
+            return
 
         def after_this_segment():
             root.after(HOOK_MS, write_next_segment)
@@ -1613,8 +2416,13 @@ def _is_single_focus_layout(scn: dict) -> bool:
 
 
 def load_scene():
+    try:
+        stop_video()
+    except Exception:
+        pass
     global scene, _flicker_cfg, sfx_started_this_scene, _dizzy_cfg
     stop_clicks()
+    cancel_auto_next()
     stop_flicker()
     stop_dizzy()
 
@@ -1630,12 +2438,15 @@ def load_scene():
     except Exception:
         pass
 
+    # ✅ Yeni sahne başında seçimleri gizle (metin akarken buton görünmesin)
+    hide_choices_ui()
+
 
     # ✅ AUTO NEXT
     # - auto_next_after=True  => sahne bittikten sonra geç
     # - auto_next_after=False => sahne açılır açılmaz geç (eski davranış)
     auto_next = scene.get("auto_next", None)
-    auto_after = bool(scene.get("auto_next_after", False))
+    auto_after = bool(scene.get("auto_next_after", False)) or ("auto_next_delay_ms" in scene)
 
     if auto_next and (not auto_after):
         delay = int(scene.get("auto_delay_ms", 0) or 0)
@@ -1679,8 +2490,34 @@ def load_scene():
 
         seg_list = split_text_into_segments(scene.get("text", ""))
 
+        # overlay queue: scene['overlay_images'] varsa onu kullan, yoksa hero images listesinin devamı
+        global _overlay_queue, _overlay_i
+        _overlay_i = 0
+        ov = scene.get("overlay_images", None)
+        if isinstance(ov, (list, tuple)) and ov:
+            _overlay_queue = list(ov)
+        else:
+            imgs_all = scene.get("images", None)
+            if isinstance(imgs_all, (list, tuple)) and len(imgs_all) > 1:
+                _overlay_queue = list(imgs_all[1:])
+            else:
+                _overlay_queue = []
+
+
+        # ✅ overlay step triggers (token-free)
+        global _overlay_step_points, _overlay_step_fired
+        raw_steps = scene.get("overlay_at_steps", None)
+        pts = []
+        if isinstance(raw_steps, (list, tuple)):
+            for x in raw_steps:
+                try:
+                    pts.append(int(x))
+                except Exception:
+                    pass
+        _overlay_step_points = pts
+        _overlay_step_fired = set()
         # ✅ HERO giriş animasyonu: önce görsel pop-in, sonra yazı akar
-        pop_in_hero(one, on_done=lambda: play_text_segments_only(seg_list))
+        pop_in_hero(one, on_done=lambda: (start_video(scene.get('video', None), current), play_text_segments_only(seg_list)))
 
         try:
             if inv_ui:
@@ -1705,6 +2542,30 @@ def load_scene():
 # ✅ 3 BUTON + (SAHNEDE VARSA) 4. BUTON + 🔒 LOCKED
 # ============================================================
 def show_buttons_for_scene():
+    # auto-next after scene finish (if configured)
+    if schedule_auto_next_after_scene():
+        return
+
+    # ✅ Dinamik buton sayısı: sahnede kaç seçenek varsa sadece onları göster.
+    # - 1 seçenek -> 1 buton
+    # - 2 seçenek -> 2 buton
+    # - 3 seçenek -> 3 buton
+    # - 4 (choices_if/choices ile) -> 4 buton
+    def _hide_all_choice_containers():
+        for cf in choice_containers:
+            try:
+                cf.pack_forget()
+            except Exception:
+                pass
+
+    def _pack_containers(indices):
+        # choices_row frame'i kendi içinde center kalır; çocuklar soldan dizilir.
+        for idx in indices:
+            try:
+                choice_containers[idx].pack(side="left", padx=44)
+            except Exception:
+                pass
+
     if scene.get("ending") is True:
         def _replay():
             stop_clicks()
@@ -1715,39 +2576,40 @@ def show_buttons_for_scene():
             else:
                 show_language_screen()
 
+        # Ending ekranı: 3 buton
         choice_buttons[0].config(text="Replay", command=_replay, state="normal")
         choice_buttons[1].config(text="Gallery", command=show_gallery, state="normal")
         choice_buttons[2].config(text="Exit", command=on_escape, state="normal")
         choice_buttons[3].config(text="", state="disabled")
-        try:
-            choice_containers[3].pack_forget()
-        except Exception:
-            pass
+
+        _hide_all_choice_containers()
+        _pack_containers([0, 1, 2])
         return
 
     resolved = resolve_choices(scene, STATE)
     locked = compute_locked_choices(scene, STATE)
 
     keys = ["1", "2", "3", "4"]
-    show_4 = ("4" in resolved) or ("4" in locked)
 
-    if show_4:
-        try:
-            if not choice_containers[3].winfo_ismapped():
-                choice_containers[3].pack(side="left", padx=44)
-        except Exception:
-            pass
-    else:
-        try:
-            choice_containers[3].pack_forget()
-        except Exception:
-            pass
-
+    # Hangi butonlar görünecek?
+    visible_indices = []
     for i, k in enumerate(keys):
-        if k == "4" and not show_4:
-            choice_buttons[i].config(text="", state="disabled")
-            continue
+        exists = False
+        if k in resolved:
+            exists = True
+        elif k in locked:
+            exists = True
 
+        if exists:
+            visible_indices.append(i)
+
+    # Eğer hiç seçenek yoksa (edge-case), hepsini gizle
+    _hide_all_choice_containers()
+    if visible_indices:
+        _pack_containers(visible_indices)
+
+    # Buton metinlerini/komutlarını ayarla
+    for i, k in enumerate(keys):
         if k in resolved:
             txt = resolved[k][0]
             choice_buttons[i].config(text=txt, command=lambda kk=k: choose(kk), state="normal")
@@ -1756,6 +2618,44 @@ def show_buttons_for_scene():
             choice_buttons[i].config(text=f"🔒 {txt}", command=lambda: None, state="disabled")
         else:
             choice_buttons[i].config(text="", state="disabled")
+    # ✅ Dinamik genişlik (tek tek) + minimum boy:
+    # Her buton kendi metnine göre uzar, ama çok küçülmez.
+    if visible_indices:
+        try:
+            sw = root.winfo_screenwidth()
+        except Exception:
+            sw = 1600
+
+        # Ekrana göre maksimum genişlik (çok büyüyüp taşmasın)
+        usable = int(sw * 0.86)
+
+        MIN_BTN_PX = 360   # ✅ en küçük buton (senin “eski iyi boyut” hissi)
+        MAX_BTN_PX = max(520, usable // max(1, len(visible_indices)))  # sahnede az buton varsa daha geniş olabilir
+
+        for vi in visible_indices:
+            try:
+                t = str(choice_buttons[vi].cget("text") or "")
+                f = tkfont.Font(font=choice_buttons[vi].cget("font"))
+
+                char_px = max(8, f.measure("0"))
+                text_px = f.measure(t)
+                pad_px = 90  # iç boşluk hissi
+
+                # hedef px (min koru, max sınırla)
+                want_px = max(MIN_BTN_PX, min(text_px + pad_px, MAX_BTN_PX))
+
+                # Tkinter Button width -> karakter birimi
+                width_chars = max(22, int(want_px / char_px))
+
+                # default: tek satır
+                choice_buttons[vi].config(width=width_chars, padx=24, pady=8, wraplength=0, justify="center")
+
+                # Eğer metin çok uzunsa, wrap aç (2 satıra düşebilir)
+                if (text_px + pad_px) > want_px:
+                    wrap_px = max(260, int(want_px - pad_px))
+                    choice_buttons[vi].config(wraplength=wrap_px)
+            except Exception:
+                pass
 
 
 def choose(choice_key):
@@ -2433,11 +3333,34 @@ def skip_typing(e=None):
 
 
 def on_space(e=None):
-    global waiting_pagebreak
+    global waiting_pagebreak, _last_space_ts, _space_down
+
+    # ✅ Debounce: ignore OS key-repeat while SPACE is held down
+    if _space_down:
+        return "break"
+    _space_down = True
+
+    # ✅ Minimum interval between accepted SPACE presses
+    now = time.perf_counter()
+    if (now - _last_space_ts) * 1000.0 < SPACE_COOLDOWN_MS:
+        return "break"
+    _last_space_ts = now
+
     if waiting_pagebreak:
         _continue_after_pagebreak()
-        return
+        return "break"
+
     skip_typing(e)
+    return "break"
+
+
+def on_space_release(e=None):
+    global _space_down
+    _space_down = False
+    return "break"
+
+    skip_typing(e)
+    return "break"
 
 
 # ----------------------------
@@ -2457,7 +3380,8 @@ root.bind("1", key_choice)
 root.bind("2", key_choice)
 root.bind("3", key_choice)
 root.bind("4", key_choice)
-root.bind("<space>", on_space)
+root.bind("<KeyPress-space>", on_space)
+root.bind("<KeyRelease-space>", on_space_release)
 
 load_progress()
 

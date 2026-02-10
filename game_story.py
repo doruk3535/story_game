@@ -222,7 +222,7 @@ STORY_TR = {
     ),
     "choices": {
         "1": ("Satranç tahtasını incele", "S16_CHESS_PUZZLE_SCREEN_DUO", []),
-        "2": ("Yangın tüpüyle kilidi kırmaya çalış", "S16_yangın_tüpü", []),
+        "2": ("Yangın tüpüyle \n kilidi kırmaya çalış", "S16_yangın_tüpü", []),
         "3": ("Yakalanmadan saklan", "S16_CAFETERIA_HIDE_DUO", []),
     },
 },
@@ -252,6 +252,7 @@ STORY_TR = {
         "Tezgâhın altına eğiliyorsun.||"
         " şifreli olan kilidi şifreni girmeye hazırlanıyorsun.||"
     ),
+    "images": [None, "images/s16_1_counter_back.png", None],
     "choices": {
         "1": ("h7 ", "S16_kilit_açılmıyor_DUO", []),
         "2": ("g6", "S16_şifre_doğru_DUO", []),
@@ -263,7 +264,8 @@ STORY_TR = {
         "Biliyordum.||"
         "Kilit açıldı.||"
         "İçinde bir anahtar var.||"
-    ),
+    ),"images": [None, "images/s16_sifre_dogru.png", None],
+
     "choices": {
         "1": ("Anahtarı al", "S16_KEY_TAKEN_DUO", ["I_KEY"]),
     },
@@ -543,17 +545,33 @@ STORY_TR = {
         "3": ("Yakalanmadan saklan ", "S16_CAFETERIA_HIDE_DUO", []),
     },
 },
-"S16_kilit_açılmıyor_DUO": {
+"S16_kilit_açılmıyor_DUO_A": {
     "text": (
         "Yanlış hesaplamış olmalıyım.||"
         "Bidaha denemeliyim .||"
     ),
+    "images": [None, "images/s16_kilit_acilmiyor_duo_a.png", None],
+
     "choices": {
         "1": ("Tekrar tahtaya bak", "S16_CHESS_PUZZLE_SCREEN_DUO", []),
         "2": ("Yangın söndürücüyü al", "S16_şifre_doğru_DUO", []),
         "3": ("SAKLAN !!!", "S16_CAFETERIA_HIDE_DUO", []),
     },
 },
+"S16_kilit_açılmıyor_DUO_C": {
+    "text": (
+        "Yanlış hesaplamış olmalıyım.||"
+        "Bidaha denemeliyim .||"
+    ),
+    "images": [None, "images/s16_kilit_acilmiyor_duo_a.png", None],
+
+    "choices": {
+        "1": ("Tekrar tahtaya bak", "S16_CHESS_PUZZLE_SCREEN_DUO", []),
+        "2": ("Yangın söndürücüyü al", "S16_şifre_doğru_DUO", []),
+        "3": ("SAKLAN !!!", "S16_CAFETERIA_HIDE_DUO", []),
+    },
+},
+
     "S16_CAFETERIA_HIDE_DUO": {
         "text": (
             "Tezgâhın altına giriyorsunuz.|| Dizleriniz taş zemine gömülüyor.||"
@@ -657,7 +675,7 @@ STORY_TR = {
 
     "S07_CAMERA_DOOR": {
         "text": (
-            "Kamera odasının kapısındasın.||"
+            "##Kamera odasının kapısındasın.||"
             "İçeriden hafif bir uğultu geliyor.||||"
             "Kilitli değil."
         ),
@@ -692,7 +710,7 @@ STORY_TR = {
         "text": (
             "##Sana baktı ve dediki.||"
             "Bu saatte koridorda gezmenin ||"
-            "yasak olduğunu bilmiyormusun '.||"
+            "Yasak olduğunu bilmiyormusun .||"
         ),
         "images": [None, "images/S08.5_DONT_LOOK_HİM.png", None],
         "choices": {
@@ -721,7 +739,7 @@ STORY_TR = {
         "##Bir anda koşmaya başlıyorsun.||"
         "##Adımların koridorda yankılanıyor.||"
         "Işıklar uzuyor, daralıyor.||"
-        "##Tam önünde duruyor.||"
+        "##Tam önünde duruyor Kafeterya.||"
 
     ),
     "images": [
@@ -731,14 +749,19 @@ STORY_TR = {
     ],
 
  "choices": {
-        "1": ("", "S8.7_CAFETERIA_KARSILASMA"),
+
+
+            
+
+
         "2": ("Kafeteryaya gir", "S8.7_CAFETERIA_KARSILASMA", []),
-        "3": ("", "S8.7_CAFETERIA_KARSILASMA"),
+
+
     },
 },
 "S8.7_CAFETERIA_KARSILASMA": {
     "text": (
-        "##İçerde birine çarpıyosun .||"
+        "##İçerde birine çarpıyorsun .||"
         "Çarpmanın etkisiyle yere düşüyo.||"
         "##Dur bi saniye sende kimsin.||"
         "Ve Neden.||"
@@ -793,7 +816,7 @@ STORY_TR = {
         "Etrafı incelediğinde iki şey görüyorsun .||"
         "##Bir satranç tahtası.||"
         "##Ve bir yangın tüpü:||"
-        "Ne yapmalıyım”||"
+        
     ),
     "images": [
         "images/s16_1_counter_back.png",
@@ -802,7 +825,7 @@ STORY_TR = {
     ],
     "choices": {
         "1": ("Satranç tahtasını incele", "S16_CHESS_PUZZLE_SCREEN", []),
-        "2": ("Yangın tüpüyle kilidi kırmaya çalış", "S16_yangın_tüpü", []),
+        "2": ("Yangın tüpüyle \n kilidi kırmaya çalış", "S16_yangın_tüpü", []),
         "3": ("Yaşlı adam gelemden saklanıcak biyer bul", "S16_CAFETERIA_HIDE", []),
     },
 },
@@ -812,7 +835,9 @@ STORY_TR = {
             "Kapı açılıyor.|||"
             "Hademe: 'Nerdesin... orada olduğunu biliyorum.'|||"
             "Ayakkabısının sesi... duruyor. Tam önünde."
-        ),
+            
+        ),"images": [None, "images/s16_cafeteria_hide.png", None],
+
         "choices": {
             "1": ("Sessiz kal / nefesini tut", "S15_HIDE_SILENT_1", ["F_HIDE"]),
             "2": ("Ses çıkar (tıkırtı)", "S15_HIDE_DISTRACT", ["F_NOISE"]),
@@ -970,7 +995,7 @@ STORY_TR = {
             "ORTANCA :ne istediğimi biliyosun.||"
             "ORTANCA :çocuğun burdan gitmesi.||"
             "Hademe:Bunun olmucağını biliyosun .||"
-            "Hademe:Neden olamıcağınıda biliyosun .||"
+            "Hademe:Neden olamıcağınıda .||"
             "Sen'burda neler oluyo:.||"
             "ORTANCA :Anlat ona.||"
             "Hademe:Pekİ.||"
@@ -1167,7 +1192,7 @@ STORY_TR = {
     "S16_CHESS_PUZZLE_SCREEN": {
         "images": [None, "images/s16_chess_puzzle_screen.png", None],
         "text": (
-            "Tahtaya bakıyorsun.||"
+            "##Tahtaya bakıyorsun.||"
             "Taşlar sana bir şey ima ediyor.|||"
             "Oyun sonu çok yakın gibi.||"
             "Taşların koordinatları sana bir şeyler anlatıyor.|||"
@@ -1187,13 +1212,13 @@ STORY_TR = {
     "S16_CHESS_TRY_A": {
         "images": [None, "images/s16_chess_try_a.png", None],
         "text": (
-            "Kale h7 gibi ama emin değilim .||"
+            "##Kale h7 gibi ama emin değilim .||"
             "Ozaman şifre h7 olabilirmi.||"
             "Denemekten zarar gelmez herhalde:||"
         ),
         "choices": {
             "1": ("Şifreyi deneyelim bakalım", "S16_UNLOCK_SEQUENCE", []),
-            "2": ("Yangın tüpüne al", "S16_yangın_tüpü", []),
+            "2": ("Boşverip yangın \n tüpüyle kilidi kır", "S16_yangın_tüpü", []),
             "3": ("Yakalanmadan saklan ", "S16_CAFETERIA_HIDE", []),
         },
     },
@@ -1201,13 +1226,13 @@ STORY_TR = {
     "S16_CHESS_TRY_B": {
         "images": [None, "images/s16_chess_try_b.png", None],
         "text": (
-            "Atı g6'ya oynuyorsun.||"
+            "##Atı g6'ya oynuyorsun.||"
             "Ozaman şifre g6 olabilirmi.||"
             "Denemekten zarar gelmez herhalde:||"
         ),
         "choices": {
             "1": ("Kilide yönel", "S16_UNLOCK_SEQUENCE", []),
-            "2": ("Yangın tüpüne al", "S16_yangın_tüpü", []),
+            "2": ("Boşverip yangın \n tüpüyle kilidi kır", "S16_yangın_tüpü", []),
             "3": ("Yakalanmadan saklan ", "S16_CAFETERIA_HIDE", []),
         },
     },
@@ -1215,46 +1240,60 @@ STORY_TR = {
     "S16_CHESS_TRY_C": {
         "images": [None, "images/s16_chess_try_c.png", None],
         "text": (
-            "Atı f7'ya oynuyorsun.||"
+            "##Atı f7'ya oynuyorsun.||"
             "Ozaman şifre f7 olabilirmi.||"
             "Denemekten zarar gelmez herhalde:||"
         ),
         "choices": {
             "1": ("Kilide yönel", "S16_UNLOCK_SEQUENCE", []),
-            "2": ("Yangın tüpüne al", "S16_yangın_tüpü", []),
+            "2": ("Boşverip yangın \n tüpüyle kilidi kır", "S16_yangın_tüpü", []),
             "3": ("Yakalanmadan saklan ", "S16_CAFETERIA_HIDE", []),
         },
     },
 
     "S16_UNLOCK_SEQUENCE": {
+        "images": [None, "images/s16_1_counter_back copy.png", None],
         "text": (
-            "Tezgâhın altına eğiliyorsun.||"
-            " şifreli olan kilidi şifreni girmeye hazırlanıyorsun.||"
+            "##Tezgâhın altına eğiliyorsun.||"
+            "Şifreli olan kilidi şifreni girmeye hazırlanıyorsun.||"
         ),
+
         "choices": {
-            "1": ("h7 ", "S16_kilit_açılmıyor", []),
+            "1": ("h7 ", "S16_kilit_açılmıyor_a", []),
             "2": ("g6", "S16_şifre_doğru", []),
-            "3": ("f7", "S16_kilit_açılmıyor", []),
+            "3": ("f7", "S16_kilit_açılmıyor_C", []),
         },
     },
 
-    "S16_kilit_açılmıyor": {
+    "S16_kilit_açılmıyor_a": {
         "text": (
-            "Yanlış hesaplamış olmalıyım.||"
+            "##Yanlış hesaplamış olmalıyım.||"
             "Bidaha denemeliyim .||"
-        ),
+        ),"images": [None, "images/s16_kilit_acilmiyor_a.png", None],
+
         "choices": {
             "1": ("Tekrar tahtaya bak", "S16_CHESS_PUZZLE_SCREEN_Again", []),
             "2": ("Yangın söndürücüyü al", "S16_şifre_doğru", []),
             "3": ("SAKLAN !!!", []),
         },
     },
+        "S16_kilit_açılmıyor_c": {
+        "text": (
+            "##Yanlış hesaplamış olmalıyım.||"
+            "Bidaha denemeliyim .||"
+        ),"images": [None, "images/s16_kilit_acilmiyor_c.png", None],
 
+        "choices": {
+            "1": ("Tekrar tahtaya bak", "S16_CHESS_PUZZLE_SCREEN_Again", []),
+            "2": ("Yangın söndürücüyü al", "S16_şifre_doğru", []),
+            "3": ("SAKLAN !!!", []),
+        },
+    },
     "S16_CHESS_PUZZLE_SCREEN_Again": {
         "images": [None, "images/s16_chess_puzzle_screen.png", None],
 
         "text": (
-            "Tekrar tahtaya bakıyorsun.||"
+            "##Tekrar tahtaya bakıyorsun.||"
             "Bu sefer doğru hamleyi yapman gerek."
         ),
         "choices": {
@@ -1266,10 +1305,11 @@ STORY_TR = {
 
     "S16_şifre_doğru": {
         "text": (
-            "Biliyordum.||"
+            "##Biliyordum.||"
             "Kilit açıldı.||"
             "İçinde bir anahtar var.||"
-        ),
+        ),"images": [None, "images/s16_sifre_dogru.png", None],
+
         "choices": {
             "2": ("Anahtarı al", "S16_KEY_TAKEN_SOLO", ["I_KEY"]),
         },
@@ -1277,7 +1317,7 @@ STORY_TR = {
 
     "S16_KEY_TAKEN_SOLO": {
         "text": (
-            "Anahtarı aldın.||"
+            "##Anahtarı aldın.||"
             "Ne açtığını bilmiyorsun ama doğru olduğunu hissediyorsun.|||"
             "Tam cebine koyacakken…|||"
             "Yan taraftaki kapıdan bir ses geliyor.||"
@@ -1285,10 +1325,11 @@ STORY_TR = {
             "Sanki biri kapının arkasında nefes alıyor.|||"
             "Kafeterya koridoru ise bomboş.||"
             "Işıklar titriyor."
-        ),
+        ),"images": [None, "images/s16_key_taken_solo.png", None],
+
         "choices": {
-            "1": ("Koridora git ve anahtarla kaç", "END_SOLO_ESCAPE", []),
-            "2": ("Ses gelen deponnun kapısına doğru yaklaş", "S15_CAFETERIA_STORAGE_LOCK", []),
+            "1": ("Yangın çıkışına doğru git", "END_SOLO_ESCAPE_A", []),
+            "2": ("Ses gelen deponun kapısına doğru yaklaş", "S15_CAFETERIA_STORAGE_LOCK", []),
         },
     },
 
@@ -1313,42 +1354,100 @@ STORY_TR = {
         ),
         "auto_next": "S15_CAFETERIA_STORAGE_LOCK",
     },
+"END_SOLO_ESCAPE_A": {
+    "layout": "single_focus",
+    "image": "images/scene_corridor.png",
+    "flicker": {"index": 2, "slot": "C", "intensity": "strong"},
 
-    "END_SOLO_ESCAPE": {
-        "text": (
-            "Kafeteryadan fırlıyorsun.||"
-            "Koridorun ucunda, paslı bir tabela:||"
-            "YANGIN ÇIKIŞI.|||"
-            "Kapının etrafındaki ışık diğerlerinden farklı…||"
-            "Garip bi his veriyo .|||"
-            "Arkana bakıyorsun—|||"
-            "Hademe beliriyor.||"
-            "Yaşlı… omuzları çökmüş… ama gözleri keskin.|||"
-            "Koşamıyor.||"
-            "Ama seni durdurmaya çalışıyor.|||"
-            "Sen kapıya doğru hızlanıyorsun.||"
-            "Elin kolu titreyerek anahtarı çıkarıyor.|||"
-            "Kilit…|||"
-            "Tık.|||"
-            "Kapıyı açıyorsun ve—|||"
-            "Bir koridor değil.||"
-            "bu bir kapı değil.|||"
-            "Kapının içinde… dönüp duran bir boşluk var.||"
-            "Işık değil— sanki zamanın kendisi kıvrılıyor.|||"
-            "Bir ZAMAN PORTALI.|||"
-            "Hademe arkanıdan bağırıyor:|||"
-            "\"Dur!\"||"
-            "\"Her şeyi mahvedeceksin!\"|||"
-            "Sesi çatlıyor.||"
-            "Sanki bu cümleyi daha önce de söylemiş gibi…|||"
-            "Parmakların kapı kolunda.||"
-            "Bir adım… ya da bir soru."
-        ),
-        "choices": {
-            "1": ("Hademeye ne olduğunu sor", "END_SOLO_ESCAPE_ASK", []),
-            "2": ("Kapıdan geç", "END_SOLO_ESCAPE_PORTAL", []),
-        },
+    "text": (
+        "##Kafeteryadan fırlıyorsun.||"
+        "Koridorun ucunda, paslı bir tabela:||"
+        "YANGIN ÇIKIŞI.|||"
+        "Kapının etrafındaki ışık diğerlerinden farklı...□||"
+        "Garip bi his veriyo.|||"
+    ),
+
+    "auto_next": "END_SOLO_ESCAPE_B",
+    "auto_next_after": True,
+    "auto_delay_ms": 0,
+    "auto_next_delay_ms": 0,
+},
+
+"END_SOLO_ESCAPE_B": {
+    "layout": "single_focus",
+    "image": "images/scene_cafeteria_janitor.png",
+     "flicker": {"index": 2, "slot": "C", "intensity": "strong"}
+,
+
+    "text": (
+        "Arkana bakıyorsun—||"
+        "Hademe beliriyor.|||"
+        "Yaşlı… omuzları çökmüş… ama gözleri keskin.||"
+        "Koşamıyor.||"
+        "Ama seni durdurmaya çalışıyor.|||"
+    ),
+
+    "auto_next": "END_SOLO_ESCAPE_C",
+    "auto_next_after": True,
+    "auto_delay_ms": 0,
+    "auto_next_delay_ms": 0,
+},
+
+
+# 3) FIRE EXIT
+"END_SOLO_ESCAPE_C": {
+    "layout": "single_focus",
+    "image": "images/scene_fire_exit_door.png",
+    "text": (
+        "Sen kapıya doğru hızlanıyorsun.||"
+        "Elin kolu titreyerek anahtarı çıkarıyorsun.□|||"
+        "Kilit…□||"
+        "Tık.|||"
+        "Kapıyı açıyorsun ve—||"
+        "Bu bir kapı değil.|||"
+    ),
+
+    # ✅ otomatik sonraki sahne (metin bitince)
+    "auto_next": "END_SOLO_ESCAPE_D",
+    "auto_next_after": True,
+    "auto_delay_ms": 0,
+    "auto_next_delay_ms": 0,
+},
+
+
+"END_SOLO_ESCAPE_D": {
+    "layout": "single_focus",
+
+    # ✅ fallback görsel: gerçekten var olan bir PNG olmalı
+    # sende bg.png var görünüyor, istersen onu koy:
+    "image": "images/bg.png",
+
+    # ✅ MP4 oynat
+    "video": {
+        "path": "images/portal_anim/portal.mp4",
+        "fps": 24,
+        "loop": True
     },
+
+    "text": (
+         "Kapının içinde… dönüp duran bir boşluk var.||"
+        "Işık değil□— sanki zamanın kendisi kıvrılıyor.||"
+        "Bir ZAMAN PORTALI.|||"
+        "Hademe arkanıdan bağırıyor:□||"
+        "\"Dur!\"□||"
+        "\"Her şeyi mahvedeceksin!\"|||"
+        "Sesi çatlıyor.□||"
+        "Parmakların kapı kolunda.||"
+        "Bir adım…"
+    ),
+    "choices": {
+        "1": ("Hademeye neler olup bittiğini sor", "END_SOLO_ESCAPE_ASK", []),
+        "2": ("Kapıdan geç", "END_SOLO_ESCAPE_PORTAL", []),
+    },
+},
+
+
+
 
     "END_SOLO_ESCAPE_PORTAL": {
         "text": (
