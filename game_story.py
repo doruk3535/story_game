@@ -1420,7 +1420,7 @@ STORY_TR = {
 
     # ✅ fallback görsel: gerçekten var olan bir PNG olmalı
     # sende bg.png var görünüyor, istersen onu koy:
-    "image": "images/bg.png",
+    "image": "images/image_copy.png",
 
     # ✅ MP4 oynat
     "video": {

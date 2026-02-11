@@ -1662,19 +1662,22 @@ def show_single_big_image(img_path: str):
         )
         return
 
-    # If we are coming from triptych mode and no hero item exists, clear AFTER we have the image ready
-    if hero_item_id is None:
-        try:
-            any_slot = any(slot_items.get(k) is not None for k in ("L", "C", "R"))
-        except Exception:
-            any_slot = False
-        if any_slot:
-            # Clear triptych items fast; we already have 'photo' ready, so no visible blank
-            carousel_canvas.delete("all")
-            for k in ("L", "C", "R"):
-                slot_items[k] = None
-                slot_images[k] = None
-            tmp_refs.clear()
+    # If we are coming from triptych mode (slot items exist), clear AFTER we have the image ready.
+    # We clear *regardless* of hero_item_id to prevent any leftover slot images from persisting.
+    try:
+        any_slot = any(slot_items.get(k) is not None for k in ("L", "C", "R"))
+    except Exception:
+        any_slot = False
+
+    if any_slot:
+        # Clear triptych items fast; we already have 'photo' ready, so no visible blank
+        carousel_canvas.delete("all")
+        for k in ("L", "C", "R"):
+            slot_items[k] = None
+            slot_images[k] = None
+        tmp_refs.clear()
+        # hero item was also deleted by delete("all"); recreate it below
+        hero_item_id = None
 
     # Clear overlay items (do not touch base hero item)
     try:
@@ -1741,6 +1744,24 @@ def pop_in_hero(img_path: str, duration_ms=POP_MS, frames=POP_FRAMES, on_done=No
     - PIL yoksa: normal yükler
     """
     global hero_item_id, hero_img_path
+    global hero_overlay_items, hero_overlay_refs, _overlay_queue, _overlay_i, _overlay_step_points, _overlay_step_fired
+
+    # ✅ Clear leftover hero overlays so they never stack between scenes
+    try:
+        for it in list(hero_overlay_items):
+            try:
+                carousel_canvas.delete(it)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    hero_overlay_items = []
+    hero_overlay_refs = []
+    _overlay_queue = []
+    _overlay_i = 0
+    _overlay_step_points = []
+    _overlay_step_fired = set()
+
     # NOTE: We intentionally do NOT clear the canvas here.
     # We prepare the first frame first, then swap, to avoid background flashes.
 
@@ -2077,13 +2098,19 @@ def show_choices_ui(indices):
 
 
 def go_to(scene_id):
+    # Always hard-clear previous scene visuals on any scene change.
     try:
-        stop_video()
+        carousel_clear()
     except Exception:
-        pass
+        try:
+            stop_video()
+        except Exception:
+            pass
+
     global current
     cancel_auto_next()
     stop_clicks()
+
     if story and scene_id in story:
         current = scene_id
         load_scene()
@@ -2416,10 +2443,14 @@ def _is_single_focus_layout(scn: dict) -> bool:
 
 
 def load_scene():
+    # Always start a scene by clearing any previous scene visuals (hero/triptych/overlays/video).
     try:
-        stop_video()
+        carousel_clear()
     except Exception:
-        pass
+        try:
+            stop_video()
+        except Exception:
+            pass
     global scene, _flicker_cfg, sfx_started_this_scene, _dizzy_cfg
     stop_clicks()
     cancel_auto_next()
@@ -2525,6 +2556,13 @@ def load_scene():
         except Exception:
             pass
         return
+    # ✅ Triptych sahneye geçerken önceki HERO görselinin kalmasını engelle
+    # (özellikle "anahtarı aldın" gibi single_focus sahnelerinden sonra)
+    try:
+        if hero_item_id is not None or (hero_overlay_items and len(hero_overlay_items) > 0):
+            carousel_clear()
+    except Exception:
+        pass
 
     set_canvas_triptych_mode()
     img_list = get_scene_images_list(scene)
@@ -2688,8 +2726,7 @@ def choose(choice_key):
         print("[BAD NEXT]", current, choice_key, next_id)
         return
 
-    current = next_id
-    load_scene()
+    go_to(next_id)
 
     try:
         if inv_ui:
@@ -2810,7 +2847,7 @@ def set_english():
     story = STORY_EN
     current = "S01_START" if "S01_START" in story else "start"
     _enter_game_view()
-    load_scene()
+    go_to(current)
 
 
 def set_turkish():
@@ -2822,7 +2859,7 @@ def set_turkish():
     story = STORY_TR
     current = "S01_START" if "S01_START" in story else "start"
     _enter_game_view()
-    load_scene()
+    go_to(current)
 
 
 def on_escape(e=None):
@@ -3350,16 +3387,14 @@ def on_space(e=None):
         _continue_after_pagebreak()
         return "break"
 
-    skip_typing(e)
+    # ✅ SPACE is reserved for pagebreaks only (|||).
+    # If not waiting_pagebreak, ignore to prevent skipping/scene desync.
     return "break"
 
 
 def on_space_release(e=None):
     global _space_down
     _space_down = False
-    return "break"
-
-    skip_typing(e)
     return "break"
 
 
