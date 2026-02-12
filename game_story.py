@@ -153,7 +153,7 @@ STORY_TR = {
             "Az önce biri vardı ama artık yok.||"
             "Ayak sesi yok."
         ),
-        "images": [None, "images/s04_corridor.png", None],
+        "images": [None, "images/s04_corridor_empty.png", None],
         "choices": {
             "1": ("Yangın merdivenine git", "S15_FIRE_EXIT", []),
             "2": ("Yemekhaneye yönel", "S16_CAFETERIA_FROM_CAMERA", []),
@@ -161,17 +161,26 @@ STORY_TR = {
         },
     },
 "S16_CAFETERIA_FROM_CAMERA": {
+    "layout": "single",
     "text": (
-        "##Yemekhaneye yürüyorsun.||"
+        "Yemekhaneye yürüyorsun.||"
         "Kapıyı itiyorsun.||"
         "İçerisi… fazla aydınlık.|||"
-        "Ve girer girmez birini görüyorsun.||"
+        "##Ve girer girmez birini görüyorsun.||"
         "Bu sensin kameralarda gördüğün kişi.||"
-        "Neden nasılını soramadan acele et burdan kurtalmamız gerek diyor.||"
-        "Bize bi anahtar lazım yangın çıkışı için."
+        "Neden nasılını soramadan:||"
+        "‘Acele et, burdan kurtulmamız gerek.’ diyor.||"
+        "‘Bize bi anahtar lazım… yangın çıkışı için.’"
     ),
-    "auto_next": "S16_CAFETERIA_WITH_MIDDLE",
+    "image": "images/s16_cafeteria_from_camera.png",
+    "choices": {
+        "1": ("Saklan", "S16_CAFETERIA_HIDE", []),
+        "2": ("Birlikte hareket et", "S16_CAFETERIA_CHECK_AROUND", []),
+        "3": ("Tek başına hareket et", "S16_CAFETERIA_SOLO", []),
+    },
 },
+
+
 "S16_CAFETERIA_CHECK_AROUND": {
     "text": (
         "Etrafına bakıyorsun.||"
@@ -588,7 +597,7 @@ STORY_TR = {
     # Alias: Akış değişmesin diye S15_FIRE_EXIT'ı kilitli sahneye yönlendiriyoruz
     "S15_FIRE_EXIT": {
         "text": (
-            "Yangın kapısının önündesin.||"
+            "##Yangın kapısının önündesin.||"
             "Kolu indiriyorsun.||"
             "Kımıldamıyor.||"
             "Kilitli.||"
@@ -610,6 +619,7 @@ STORY_TR = {
         "effects": ["SET_FLAG_FIRE_EXIT_TRIED"],
         "choices": {
             "1": ("Geri dön", "S04_CORRIDOR_After_camera", []),
+            "3": ("Yemekhaneye git", "S16_CAFETERIA_FROM_CAMERA", []),
             "2": ("Odana dön", "S09_LOOP_ROOM_4", []),
         },
     },
@@ -841,7 +851,7 @@ STORY_TR = {
         "choices": {
             "1": ("Sessiz kal / nefesini tut", "S15_HIDE_SILENT_1", ["F_HIDE"]),
             "2": ("Ses çıkar (tıkırtı)", "S15_HIDE_DISTRACT", ["F_NOISE"]),
-            "3": ("Etrafı Aaramya başla.'", "S16_CAFETERIA_CHESS_SETUP", []),
+            "3": ("Etrafı Aramya başla.", "S16_CAFETERIA_CHESS_SETUP", []),
         },
     },
 
@@ -1711,7 +1721,7 @@ STORY_TR = {
 "S11_CAMERA_ROOM": {
     "layout": "single_focus",
     "image": "images/s11_camera_room.png",
-    "text": "Kamera odasındasın.||Ekranlar açık.||Koridorda biri var.",
+    "text": "##Kamera odasındasın.||Ekranlar açık.||Koridorda biri var.",
         "choices": {
             "1": ("Kayıtları izle", "S11.1_CAMERA_REALIZATION", []),
             "2": ("Tüm Ekranları kapat", "END_E03", []),
@@ -1722,7 +1732,7 @@ STORY_TR = {
     "layout": "single_focus",
     "image": "images/s11_camera_you.png",
     "text": (
-        "Görüntüdeki kişi başını çeviriyor.||"
+        "##Görüntüdeki kişi başını çeviriyor.||"
         "Görüntüdeki kişi gözüküyor ama net değil."
     ),
     "choices": {
@@ -1733,49 +1743,61 @@ STORY_TR = {
 },
 
 "S11.2_CAMERA_ZOOM": {
-    "text": (
-        "Yakınlaştırıyorsun.||"
-        "Pikseller büyüyor, görüntü daha da bozuluyor.||"
-        "Ama bir anlığına…||"
-        "yüz hatları tanıdık geliyor.||"
-        "Çok tanıdık"
-        "Sanki aynaya bakmak gibi ama farklı."
-    ),
-    "images": [None, "images/s11_camera_you_close.png", None],
-    "choices": {
-        "1": ("Artık burda işin || kalmadı odadan çık", "S04_CORRIDOR_After_camera", []),
-        "2": ("Bir kez daha zoom", "S11.3_CAMERA_AUTO_SHUTDOWN", []),
-    },
-},
+  "layout": "single_focus",
+  "image": "images/s11_camera_you_close.png",
+  "text": (
+    "##Yakınlaştırıyorsun.||"
+    "Pikseller büyüyor, görüntü daha da bozuluyor.||"
+    "Ama bir anlığına…||"
+    "yüz hatları tanıdık geliyor.||"
+    "Çok tanıdık.||"
+    "Sanki aynaya bakmak gibi… ama değil."
+  ),
+  "choices": {
+    "1": ("Artık burada işin kalmadı, odadan çık", "S04_CORRIDOR_After_camera", []),
+    "2": ("Bir kez daha zoom", "S11.3_CAMERA_AUTO_SHUTDOWN", [])
+  },
+}
+,
 "S11.3_CAMERA_AUTO_SHUTDOWN": {
+    "layout": "triptych",
     "text": (
-        "Bir kez daha yakınlaştırıyorsun.||"
-        "Ekran bir an donar.||"
-        "Sonra monitörler tek tek sönmeye başlar.||"
-        "Odanın ışığı da zayıflıyor.||"
-        "Karanlıkta kalmak… iyi bir fikir değil.||"
-        "Geri çekilip kapıdan çıkıyorsun."
+        "##Bir kez daha yakınlaştırmaya çalışıyorsun.||"
+        "Daha net görebilmek için.||"
+        "##Bir anda monitörler tek tek sönmeye başlar.||"
+        "##Cidden mi?||"
+        "Bunun sırası mıydı…||"
+        "Karanlıkta kalmak iyi bir fikir değil.||"
+        "Bir an önce buradan çıkmalıyım."
     ),
-    "images": [None, "images/s11_camera_shutdown.png", None],
+    "images": [
+        "images/s11_camera_room_left.png",      # 🟥 SOL: kamera odası / monitörler açık
+        "images/s11_camera_shutdown.png",       # 🟥 ORTA: kapanan monitör (ana vurgu)
+        "images/s11_dark_room_right.png",       # 🟥 SAĞ: karanlık oda / boşluk
+    ],
     "choices": {
         "1": ("Çık", "S04_CORRIDOR_After_camera", []),
+        "2": ("Kameraları tekrar açmaya çalış", "END_E03", []),
     },
 },
 
-    "S12_CAMERA_HINT": {
-"text": (
-    "Gelip kapıyı dinliyor.||"
-    "Ama yürüşüşü.||||"
-    "Durma ...||"
-    "Sanki senmişsin  gibi."
-),
-        "image": "images/s12_camera_hint.png",
-        "choices": {
-            "1": ("Kapıyı aç", "S11_CAMERA_ROOM", ["O1"]),
-            "2": ("Geri çekil", "S04_CORRIDOR_After_camera", []),
-            "3": ("Bunu aklında tut", "S10_MEMORY_GLITCH", []),
-        },
-    },
+
+"S12_CAMERA_HINT": {
+  "layout": "single_focus",
+  "image": "images/s12_camera_hint.png",
+  "text": (
+    "##Gelip kapıyı dinliyor.||"
+    "Yürüyüşü tanıdık.||"
+    "Durmuyor…||"
+    "Sanki sen yürüyorsun gibi."
+  ),
+  "choices": {
+    "1": ("Kapıyı aç", "S11_CAMERA_ROOM", ["O1"]),
+    "2": ("Geri çekil", "S04_CORRIDOR_After_camera", []),
+    "3": ("Bunu aklında tut", "S10_MEMORY_GLITCH", [])
+  }
+}
+,
 
     # -------- PART 3 (TR) --------
 
@@ -1864,8 +1886,43 @@ STORY_TR = {
     },
 
  
-    # -------- Erken Sonlar (TR) --------
-    "END_E01": {"text": "Gözlerini kapatırsın.||Ayak sesleri durur.||||Saat değişmez.||Hâlâ 02:17.", "image": "images/end_e01.png", "ending": True},
+"END_E01": {
+    "layout": "single_focus",
+    "text": (
+        "##Gözlerini kapatırsın.||"
+        "Ayak sesleri durur.||"
+        "Saat değişmiyor."
+    ),
+    "image": "images/end_e01.png",
+    "ending": True,
+
+    # ✅ final ekranda yazacak cümle (son cümle yerine)
+    "final_screen_line": "02:17.",
+
+    # ✅ büyük başlık
+    "ending_title": "Birinci Son",
+
+    # ✅ müzik
+    "ending_music": "sounds/ending_theme.mp3",
+    "ending_music_volume": 0.20,
+    "ending_music_start": True,
+
+    # timing
+    "final_hold_ms": 3000,
+    "final_fade_ms": 1800,
+
+    # title pop
+    "title_pop_ms": 180,
+    "title_pop_steps": 10,
+    "title_font": 56,
+
+    # “Birinci Son” ekranda kalsın, sonra menüye dönsün
+    "after_title_ms": 3500,
+    "menu_fade_ms": 1600,
+    "menu_fade_steps": 24
+},
+
+
     "END_E02": {"text": "Kıpırdamazsın.||Tik… tak…||||Ayak sesleri yaklaşır.||Bu sefer durmaz.", "image": "images/end_e02.png", "ending": True},
     "END_E03": {
     "layout": "single_focus",

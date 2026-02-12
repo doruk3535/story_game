@@ -45,6 +45,326 @@ SPACE_COOLDOWN_MS = 500  # min time between SPACE presses
 _last_space_ts = 0.0
 _space_down = False  # prevents key-repeat when holding space
 
+# ============================================================
+# ✅ ENDING CINEMATIC (black screen + final line fade + big title + music)
+# ============================================================
+
+_ending_overlay = None
+_ending_running = False
+
+_current_music_path = None  # track pygame.mixer.music loaded path
+
+def _clean_text_tokens(s):
+    if not s:
+        return ""
+    t = str(s)
+    t = t.replace(PAGEBREAK_TOKEN, " ")
+    t = t.replace("|||", " ")
+    t = t.replace("||", "\n")
+    t = t.replace(IMAGE_TOKEN, "")
+    t = t.replace(OVERLAY_TOKEN, "")
+    t = t.replace("##", "")
+    t = t.replace(PAUSE_CHAR, "")
+    t = re.sub(r"[ \t]+", " ", t).strip()
+    return t
+
+def _extract_final_line_from_scene(scn):
+    if not scn:
+        return "..."
+    # ✅ If you want a custom line on the black ending screen, set this in game_story:
+    #    "final_screen_line": "your line here"
+    if scn.get("final_screen_line"):
+        return str(scn["final_screen_line"]).strip()
+    if scn.get("final_line"):
+        return str(scn["final_line"]).strip()
+
+    txt = scn.get("text", "")
+    parts = split_text_into_segments(txt)
+    candidates = []
+    for p in parts:
+        if p in (PAGEBREAK_TOKEN, IMAGE_TOKEN, OVERLAY_TOKEN):
+            continue
+        p2 = _clean_text_tokens(p)
+        if p2:
+            lines = [x.strip() for x in p2.split("\n") if x.strip()]
+            if lines:
+                candidates.append(lines[-1])
+    return candidates[-1] if candidates else "..."
+
+def _music_play_path(path_any, loop=True, volume=None):
+    """Play music via pygame.mixer.music without restarting if the same track is already playing."""
+    if not path_any:
+        return
+    if not globals().get("PYGAME_OK", False):
+        return
+
+    global _current_music_path
+
+    try:
+        ap = abs_path(path_any)
+
+        # try alternative extensions if not found
+        if not os.path.exists(ap):
+            for p in _sound_candidates(path_any):
+                ap2 = abs_path(p)
+                if os.path.exists(ap2):
+                    ap = ap2
+                    break
+
+        if not os.path.exists(ap):
+            print("[ENDING] music missing:", path_any)
+            return
+
+        # If same music is already playing, just adjust volume and keep going
+        try:
+            if pygame.mixer.music.get_busy() and _current_music_path == ap:
+                if volume is not None:
+                    pygame.mixer.music.set_volume(float(volume))
+                return
+        except Exception:
+            pass
+
+        pygame.mixer.music.load(ap)
+        _current_music_path = ap
+
+        pygame.mixer.music.set_volume(float(volume) if volume is not None else globals().get("music_volume", 0.6))
+        pygame.mixer.music.play(-1 if loop else 0)
+
+    except Exception as e:
+        print("[ENDING] music play error:", e)
+
+def stop_ending_overlay():
+    """Destroy the ending overlay visuals only (does NOT flip the running flag)."""
+    global _ending_overlay
+    try:
+        if _ending_overlay is not None:
+            _ending_overlay.destroy()
+    except Exception:
+        pass
+    _ending_overlay = None
+
+
+def ending_fade_to_menu(scn=None):
+    """
+    Fade the black ending overlay out and reveal the main menu.
+    Called by the 'Ana Menü' button (no auto-jump).
+    """
+    global _ending_overlay, _ending_running
+
+    # show opening screen behind the overlay first
+    try:
+        show_main_menu()
+    except Exception:
+        try:
+            show_menu()
+        except Exception:
+            pass
+
+    if _ending_overlay is None:
+        _ending_running = False
+        return
+
+    total_ms = 1200
+    steps = 24
+    if isinstance(scn, dict):
+        total_ms = int(scn.get("menu_fade_ms", total_ms))
+        steps = int(scn.get("menu_fade_steps", steps))
+    steps = max(8, steps)
+    step_delay = max(15, total_ms // steps)
+
+    def _fade_step(i=0):
+        global _ending_overlay
+        global _ending_running
+        if not _ending_running:
+            return
+        a = 1.0 - (i / steps)
+        if a < 0:
+            a = 0
+        try:
+            if _ending_overlay is not None:
+                _ending_overlay.attributes("-alpha", a)
+        except Exception:
+            pass
+        if i >= steps:
+            stop_ending_overlay()
+            # ✅ switch back to the game's main menu music
+            try:
+                if PYGAME_OK:
+                    pygame.mixer.music.stop()
+                globals()['_current_music_path'] = None
+            except Exception:
+                pass
+            try:
+                play_music_loop()  # your normal game music
+            except Exception:
+                pass
+            _ending_running = False
+            return
+        root.after(step_delay, lambda: _fade_step(i + 1))
+
+    _fade_step()
+
+def show_ending_cinematic(scn):
+    """
+    1) siyah ekran
+    2) final line ortada beyaz
+    3) fade out
+    4) büyük ending_title
+    5) sonra normal ending butonları (Replay/Gallery/Exit)
+    """
+    global _ending_overlay, _ending_running
+
+    if _ending_running:
+        return
+
+    # önce varsa eski overlay'i temizle (flag'i bozmaz)
+    stop_ending_overlay()
+    _ending_running = True
+
+    # sahne UI temizliği
+    try:
+        hide_choices_ui()
+        disable_choices()
+    except Exception:
+        pass
+
+    try:
+        carousel_canvas.place_forget()
+    except Exception:
+        pass
+    try:
+        card.place_forget()
+    except Exception:
+        pass
+
+    # ✅ overlay: use a Toplevel so we can fade it out without affecting the main window
+    ov = tk.Toplevel(root)
+    ov.configure(bg="black")
+    ov.overrideredirect(True)
+    try:
+        ov.attributes("-topmost", True)
+        ov.attributes("-alpha", 1.0)
+    except Exception:
+        pass
+    # match root window geometry
+    try:
+        ov.geometry(f"{root.winfo_width()}x{root.winfo_height()}+{root.winfo_rootx()}+{root.winfo_rooty()}")
+    except Exception:
+        ov.geometry("+0+0")
+    _ending_overlay = ov
+
+    # NOTE: ending music is started at scene BEGIN (load_scene) via 'ending_music_start'.
+    # We intentionally do NOT (re)start music here to avoid restarting when the black screen appears.
+    final_line = _extract_final_line_from_scene(scn)
+    ending_title = str(scn.get("ending_title", "Birinci Son")).strip()
+
+    # final line font (bigger for 02:17)
+    final_font = int(scn.get("final_font", 42))
+
+    lbl = tk.Label(
+        ov,
+        text="",
+        bg="black",
+        fg="white",
+        font=("Times New Roman", final_font, "bold"),
+        justify="center",
+        wraplength=int(root.winfo_screenwidth() * 0.80),
+    )
+    lbl.place(relx=0.5, rely=0.50, anchor="center")
+
+    # ✅ typewriter effect for the final line on the black screen
+    def typewriter_write(widget, text, ms_per_char=55, on_done=None):
+        widget.config(text="")
+        i = 0
+        def step():
+            nonlocal i
+            if not _ending_running:
+                return
+            if i <= len(text):
+                widget.config(text=text[:i])
+                i += 1
+                root.after(ms_per_char, step)
+            else:
+                if on_done:
+                    on_done()
+        step()
+
+    def start_fade_after_hold():
+        # wait AFTER typewriter completes
+        root.after(int(scn.get("final_hold_ms", 3000)), do_fade)
+
+    type_ms = int(scn.get("final_type_ms", 55))
+    typewriter_write(lbl, final_line, ms_per_char=type_ms, on_done=start_fade_after_hold)
+
+    steps = 26
+    fade_total = int(scn.get("final_fade_ms", 1400))
+    delay_ms = max(25, fade_total // steps)
+
+    def _color(i):
+        v = int(255 * (1.0 - (i / steps)))
+        v = max(0, min(255, v))
+        return f"#{v:02x}{v:02x}{v:02x}"
+
+    def show_title():
+        if not _ending_running:
+            return
+
+        # ✅ DAN DİYE / POP animasyonu
+        pop_steps = int(scn.get("title_pop_steps", 10))
+        pop_ms    = int(scn.get("title_pop_ms", 180))
+        target    = int(scn.get("title_font", 56))
+
+        title_lbl = tk.Label(
+            ov,
+            text=ending_title,
+            bg="black",
+            fg="white",
+            font=("Times New Roman", 10, "bold"),
+            justify="center"
+        )
+        title_lbl.place(relx=0.5, rely=0.50, anchor="center")
+
+        step_delay = max(10, pop_ms // max(1, pop_steps))
+        start_size = 10
+        delta = (target - start_size) / max(1, pop_steps)
+
+        def pop(i=0):
+            if not _ending_running:
+                return
+            size = int(start_size + delta * i)
+            if i >= pop_steps:
+                size = target
+            try:
+                title_lbl.config(font=("Times New Roman", size, "bold"))
+            except Exception:
+                pass
+            if i < pop_steps:
+                root.after(step_delay, lambda: pop(i + 1))
+
+        pop()
+        # ✅ Otomatik: siyah ekran bir süre kalsın, sonra lobby'e dön (tam menü)
+        delay_ms = int(scn.get("after_title_ms", 2000))
+        root.after(delay_ms, lambda: ending_fade_to_menu(scn))
+
+
+    def do_fade(i=0):
+        if not _ending_running:
+            return
+        if i > steps:
+            try:
+                lbl.config(text="")
+            except Exception:
+                pass
+            show_title()
+            return
+        try:
+            lbl.config(fg=_color(i))
+        except Exception:
+            pass
+        root.after(delay_ms, lambda: do_fade(i + 1))
+
+
+
 class GameState:
     def __init__(self):
         self.flags = set()   # F_* ve O* gibi
@@ -133,6 +453,230 @@ try:
     from PIL import Image, ImageTk, ImageEnhance, ImageFilter
 except Exception:
     PIL_OK = False
+
+# ============================================================
+# ✅ INTRO CINEMATIC (used at game start; e.g., TR "BÖLÜM 1" -> "YURT ODASI")
+# ============================================================
+
+_intro_overlay = None
+_intro_running = False
+
+def stop_intro_overlay():
+    global _intro_overlay
+    try:
+        if _intro_overlay is not None:
+            _intro_overlay.destroy()
+    except Exception:
+        pass
+    _intro_overlay = None
+
+
+def show_intro_cinematic(cfg: dict, on_done):
+    """
+    Fullscreen black overlay sequence:
+      - show image1 (hold)
+      - switch to image2 (fade in)
+      - hold
+      - fade out overlay
+      - then call on_done()
+    Music (optional):
+      - cfg['intro_music']: path
+      - cfg['intro_music_volume']: 0..1
+      - cfg['intro_music_loop']: bool
+    """
+    global _intro_overlay, _intro_running
+
+    if _intro_running:
+        return
+    _intro_running = True
+    stop_intro_overlay()
+
+    # ensure game UI behind is hidden (we'll show it again in on_done/go_to)
+    try:
+        hide_choices_ui()
+        disable_choices()
+    except Exception:
+        pass
+    try:
+        carousel_canvas.place_forget()
+    except Exception:
+        pass
+    try:
+        card.place_forget()
+    except Exception:
+        pass
+
+    # stop any current looping music (menu music) and start intro music (if any)
+    try:
+        intro_music = cfg.get("intro_music")
+        if intro_music:
+            stop_music()
+            vol = float(cfg.get("intro_music_volume", 0.25))
+            loop = bool(cfg.get("intro_music_loop", False))
+            _music_play_path(str(intro_music), loop=loop, volume=vol)
+    except Exception as e:
+        print("[INTRO] music error:", e)
+
+    ov = tk.Toplevel(root)
+    ov.configure(bg="black")
+    ov.overrideredirect(True)
+    try:
+        ov.attributes("-topmost", True)
+        ov.attributes("-alpha", 1.0)
+    except Exception:
+        pass
+    try:
+        ov.geometry(f"{root.winfo_width()}x{root.winfo_height()}+{root.winfo_rootx()}+{root.winfo_rooty()}")
+    except Exception:
+        ov.geometry("+0+0")
+    _intro_overlay = ov
+
+    lbl = tk.Label(ov, bg="black", bd=0)
+    lbl.place(relx=0.5, rely=0.5, anchor="center")
+
+    img1_path = cfg.get("image1")
+    img2_path = cfg.get("image2")
+
+    # load images (fit to screen)
+    sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+    img1 = None
+    img2 = None
+    try:
+        if img1_path:
+            img1 = load_photo_fit(str(img1_path), sw, sh, _img_cache)
+    except Exception:
+        img1 = None
+    try:
+        if img2_path:
+            img2 = load_photo_fit(str(img2_path), sw, sh, _img_cache)
+    except Exception:
+        img2 = None
+
+    if not img1 and not img2:
+        # nothing to show -> just continue
+        def _finish_quick():
+            global _intro_running
+            stop_intro_overlay()
+            _intro_running = False
+            try:
+                stop_music()
+            except Exception:
+                pass
+            try:
+                play_music_loop()
+            except Exception:
+                pass
+            on_done()
+        root.after(50, _finish_quick)
+        return
+
+    # timings
+    hold1_ms = int(cfg.get("hold1_ms", 1200))
+    fade2_ms = int(cfg.get("fade2_ms", 900))
+    hold2_ms = int(cfg.get("hold2_ms", 900))
+    fadeout_ms = int(cfg.get("fadeout_ms", 900))
+    fade_steps = int(cfg.get("fade_steps", 24))
+    fade_steps = max(8, fade_steps)
+
+    def _fade_alpha(target_alpha: float, total_ms: int, on_end):
+        step_delay = max(15, total_ms // fade_steps)
+        start_alpha = 1.0
+        try:
+            start_alpha = float(ov.attributes("-alpha"))
+        except Exception:
+            start_alpha = 1.0
+        delta = (target_alpha - start_alpha) / float(fade_steps)
+
+        def _step(i=0):
+            global _intro_running
+            if not _intro_running:
+                return
+            a = start_alpha + delta * i
+            if a < 0: a = 0
+            if a > 1: a = 1
+            try:
+                ov.attributes("-alpha", a)
+            except Exception:
+                pass
+            if i >= fade_steps:
+                on_end()
+                return
+            root.after(step_delay, lambda: _step(i + 1))
+        _step(0)
+
+    def _finish():
+        global _intro_running
+        stop_intro_overlay()
+        _intro_running = False
+        # intro done -> switch back to normal game music
+        try:
+            if PYGAME_OK:
+                pygame.mixer.music.stop()
+            globals()['_current_music_path'] = None
+        except Exception:
+            pass
+        try:
+            play_music_loop()
+        except Exception:
+            pass
+        on_done()
+
+    # step 1: image1 full
+    if img1:
+        lbl.config(image=img1)
+        lbl.image = img1
+    else:
+        lbl.config(image=img2)
+        lbl.image = img2
+
+    def _step2_show_img2():
+        if not img2:
+            # if no second image, just fade out
+            _fade_alpha(0.0, fadeout_ms, _finish)
+            return
+        # ✅ Instant switch option: if instant_switch=True (or fade2_ms<=0),
+        # jump to image2 immediately (no fade-in), then continue with hold2 + fadeout.
+        if bool(cfg.get("instant_switch", False)) or int(cfg.get("fade2_ms", 900)) <= 0:
+            lbl.config(image=img2)
+            lbl.image = img2
+            try:
+                ov.attributes("-alpha", 1.0)
+            except Exception:
+                pass
+            root.after(hold2_ms, lambda: _fade_alpha(0.0, fadeout_ms, _finish))
+            return
+
+        lbl.config(image=img2)
+        lbl.image = img2
+        # fade in image2 by fading overlay from 0 -> 1
+        try:
+            ov.attributes("-alpha", 0.0)
+        except Exception:
+            pass
+        _fade_alpha(1.0, fade2_ms, lambda: root.after(hold2_ms, lambda: _fade_alpha(0.0, fadeout_ms, _finish)))
+
+    root.after(hold1_ms, _step2_show_img2)
+
+
+# Default TR intro config (you can change paths & timings)
+TR_INTRO_CFG = {
+    "image1": "images/intro_ch1_part.png",       # önce BÖLÜM 1
+    "image2": "images/intro_ch1_location.png",   # sonra YURT ODASI (fade)
+    "hold1_ms": 7020,
+    "fade2_ms": 1,
+    "hold2_ms": 4400,
+    "fadeout_ms": 1500,
+    "fade_steps": 64,
+    "instant_switch": True,
+
+    # müzik istersen:
+    "intro_music": "sounds/dan.mp3",
+    "intro_music_volume": 1,
+    "intro_music_loop": False,
+}
+
+
+
 
 # ============================================================
 # ✅ VIDEO (MP4/MOV) SUPPORT for single_focus (hero)
@@ -2288,6 +2832,11 @@ def play_text_segments_only(seg_list):
         if schedule_auto_next_after_scene():
             return
 
+        # ✅ ENDING cinematic
+        if scene and scene.get("ending") is True:
+            show_ending_cinematic(scene)
+            return
+
         show_buttons_for_scene()
 
         if scene and scene.get("end_sound") == "ambience":
@@ -2391,6 +2940,11 @@ def play_scene_segment_flow(img_list, seg_list):
         if sfx_started_this_scene and not scene.get("keep_sfx_after_scene", False) and scene.get("end_sound") != "ambience":
             stop_sfx_loop()
 
+        # ✅ ENDING cinematic
+        if scene and scene.get("ending") is True:
+            show_ending_cinematic(scene)
+            return
+
         show_buttons_for_scene()
 
         if scene and scene.get("end_sound") == "ambience":
@@ -2462,6 +3016,20 @@ def load_scene():
 
     scene = story[current]
     unlock_if_ending(current)
+    # ✅ Scene start music override (stop main music -> play scene/ending music immediately)
+    try:
+        scene_music = scene.get('scene_music', None)
+        # If this is an ending scene and ending_music is provided, start it immediately by default
+        if scene.get('ending') is True and scene.get('ending_music') and scene_music is None:
+            if scene.get('ending_music_start', True):
+                scene_music = scene.get('ending_music')
+        if scene_music:
+            stop_music()  # stop main loop instantly
+            vol = float(scene.get('scene_music_volume', scene.get('ending_music_volume', 0.25)))
+            _music_play_path(str(scene_music), loop=True, volume=vol)
+    except Exception as e:
+        print('[AUDIO] scene music override error:', e)
+
 
     # ✅ Yeni sahneye geçince metin alanını temizle (segmentler kendi içinde biriktirir)
     try:
@@ -2617,11 +3185,11 @@ def show_buttons_for_scene():
         # Ending ekranı: 3 buton
         choice_buttons[0].config(text="Replay", command=_replay, state="normal")
         choice_buttons[1].config(text="Gallery", command=show_gallery, state="normal")
-        choice_buttons[2].config(text="Exit", command=on_escape, state="normal")
-        choice_buttons[3].config(text="", state="disabled")
+        choice_buttons[2].config(text="Main Menu", command=show_menu, state="normal")
+        choice_buttons[3].config(text="Exit", command=on_escape, state="normal")
 
         _hide_all_choice_containers()
-        _pack_containers([0, 1, 2])
+        _pack_containers([0, 1, 2, 3])
         return
 
     resolved = resolve_choices(scene, STATE)
@@ -2859,7 +3427,18 @@ def set_turkish():
     story = STORY_TR
     current = "S01_START" if "S01_START" in story else "start"
     _enter_game_view()
-    go_to(current)
+
+    # ✅ TR seçilince önce intro cinematic oynat, sonra oyuna gir
+    def _go():
+        try:
+            _enter_game_view()
+        except Exception:
+            pass
+        go_to(current)
+
+    cfg = dict(TR_INTRO_CFG) if isinstance(globals().get("TR_INTRO_CFG"), dict) else {}
+    # if images are missing, it will skip automatically
+    show_intro_cinematic(cfg, on_done=_go)
 
 
 def on_escape(e=None):
@@ -3137,6 +3716,11 @@ class InventoryOverlay:
 
 # ============================================================
 # ✅ MAIN MENU: [ GALLERY ] [ BAŞLA ] [ AYARLAR ] [+ ÇIKIŞ]
+
+# Compatibility alias: older code may refer to show_menu()
+def show_menu():
+    return show_main_menu()
+
 # ============================================================
 def show_main_menu():
     stop_clicks()
@@ -3164,9 +3748,15 @@ def show_main_menu():
     choice_buttons[2].config(text="AYARLAR", command=_open_settings, state="normal")
     choice_buttons[3].config(text="ÇIKIŞ", command=on_escape, state="normal")
 
+    # ✅ Ensure all main menu buttons are visible (ending flow may have hidden them)
     try:
-        if not choice_containers[3].winfo_ismapped():
-            choice_containers[3].pack(side="left", padx=44)
+        for cf in choice_containers:
+            cf.pack_forget()
+    except Exception:
+        pass
+    try:
+        for i in [0, 1, 2, 3]:
+            choice_containers[i].pack(side="left", padx=44)
     except Exception:
         pass
 
@@ -3194,7 +3784,7 @@ def show_language_screen():
     choice_buttons[0].config(text="English", command=set_english, state="normal")
     choice_buttons[1].config(text="Türkçe", command=set_turkish, state=("normal" if STORY_TR else "disabled"))
     choice_buttons[2].config(text="Geri (Ana Menü)", command=show_main_menu, state="normal")
-    choice_buttons[3].config(text="", state="disabled")
+    choice_buttons[3].config(text="Exit", command=on_escape, state="normal")
     try:
         choice_containers[3].pack_forget()
     except Exception:
