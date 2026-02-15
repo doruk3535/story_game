@@ -671,7 +671,7 @@ TR_INTRO_CFG = {
 
     # müzik istersen:
     "intro_music": "sounds/dan.mp3",
-    "intro_music_volume": 1,
+    "intro_music_volume": 0.2,
     "intro_music_loop": False,
 }
 
@@ -1531,6 +1531,22 @@ choice_containers = []
 audio_ui = None
 inv_ui = None
 
+
+# ============================
+# ✅ SPEAKER HUD (auto by symbol)
+# ============================
+SPEAKER_MAP = {
+    "▲": {"name": "Hademe", "icon": "ui/speakers/janitor.png"},
+    "■": {"name": "Ortanca Ben", "icon": "ui/speakers/me_middle.png"},
+    "●": {"name": "Genç Ben", "icon": "ui/speakers/me_young.png"},
+}
+DEFAULT_SPEAKER = {"name": "", "icon": None}
+
+speaker_frame = None
+speaker_img_label = None
+speaker_name_label = None
+speaker_photo_cache = {}
+
 # Main Menu logo-only overlay
 menu_logo_label = None
 menu_logo_img = None
@@ -2060,6 +2076,71 @@ def split_text_into_segments(txt: str):
     flush()
     return out if out else [""]
 
+
+
+def detect_speaker_from_line(text_line: str):
+    """Detect a speaker symbol at the beginning of a line and strip it.
+    Symbols: ▲ ■ ●  (customize SPEAKER_MAP above)
+    """
+    if text_line is None:
+        return DEFAULT_SPEAKER, ""
+    s = str(text_line).lstrip()
+    if not s:
+        return DEFAULT_SPEAKER, s
+
+    sym = s[0]
+    if sym in SPEAKER_MAP:
+        cleaned = s[1:].lstrip()
+        return SPEAKER_MAP.get(sym, DEFAULT_SPEAKER), cleaned
+
+    return DEFAULT_SPEAKER, s
+
+
+def update_speaker_ui(speaker_data: dict):
+    """Update the left speaker HUD (portrait + name). Hides when narrator/empty."""
+    global speaker_frame, speaker_img_label, speaker_name_label, speaker_photo_cache
+
+    if speaker_frame is None or speaker_img_label is None or speaker_name_label is None:
+        return
+
+    name = (speaker_data or {}).get("name", "") or ""
+    icon_path = (speaker_data or {}).get("icon", None)
+
+    # narrator -> hide HUD
+    if (not name) and (not icon_path):
+        try:
+            speaker_frame.place_forget()
+        except Exception:
+            pass
+        speaker_name_label.config(text="")
+        speaker_img_label.config(image="")
+        return
+
+    # ensure visible
+    try:
+        speaker_frame.place(x=22, y=18)
+    except Exception:
+        pass
+
+    speaker_name_label.config(text=name)
+
+    if not icon_path:
+        speaker_img_label.config(image="")
+        return
+
+    ap = abs_path(str(icon_path))
+    if ap in speaker_photo_cache:
+        ph = speaker_photo_cache[ap]
+    else:
+        # 80x80 portrait
+        ph = load_photo_fit(str(icon_path), 80, 80, speaker_photo_cache)
+        speaker_photo_cache[ap] = ph
+
+    if ph:
+        speaker_img_label.config(image=ph)
+        speaker_img_label.image = ph
+    else:
+        speaker_img_label.config(image="")
 
 # ----------------------------
 # Canvas modes
@@ -2736,6 +2817,13 @@ def start_typewriter(text, on_done=None, clear_first=True):
     after_segment_hook = on_done
 
     full_text = text or ""
+    # ✅ Speaker auto-detect from leading symbol (▲ ■ ●)
+    try:
+        spk, cleaned = detect_speaker_from_line(full_text)
+        update_speaker_ui(spk)
+        full_text = cleaned
+    except Exception:
+        pass
     index = 0
     click_count = 0
     typing_done = False
@@ -4037,7 +4125,26 @@ card = tk.Frame(root, bg=BG_COLOR, bd=2, relief="groove")
 story_label = tk.Label(card, text="Select Language / Dil Seç",
                        font=("Segoe UI Semibold", 18), wraplength=1400, justify="center",
                        bg=BG_COLOR, fg="white")
-story_label.pack(padx=22, pady=(18, 16))
+story_label.pack(padx=(140, 22), pady=(18, 16))
+
+
+# ✅ Speaker HUD (portrait + name) - left side inside the text card
+speaker_frame = tk.Frame(card, bg=BG_COLOR)
+speaker_frame.place(x=22, y=18)
+
+speaker_img_label = tk.Label(speaker_frame, bg=BG_COLOR, bd=0)
+speaker_img_label.pack()
+
+speaker_name_label = tk.Label(
+    speaker_frame,
+    text="",
+    fg="white",
+    bg=BG_COLOR,
+    font=("Segoe UI Semibold", 16),
+    justify="left"
+)
+speaker_name_label.pack(pady=(6, 0))
+
 
 choices_row = tk.Frame(card, bg=BG_COLOR)
 choices_row.pack(pady=(0, 18))

@@ -17,7 +17,7 @@ STORY_TR = {
             "##Saat 02:17.||"
             "##Telefon ekranın açık ama bildirim yok.||"
             "##Koridordan düzenli ayak sesleri geliyor.||"
-            "Fazla düzenli."
+            "■Fazla düzenli."
         ),
         "images": [
             "images/s01_1_phone.png",
@@ -51,39 +51,42 @@ STORY_TR = {
         },
     },
 
-    "S03_PHONE_LOCK": {
-        "text": (
-            "##Kilit ekranına bakıyorsun.||"
-            "##Eski bir bildirim var.||"
-            "##Bugüne ait değil. Gönderen bilinmiyor.||"
-        ),
-        "images": [
-            "images/s03_phone.png",
-            "images/s03_2.png",
-            "images/s03_3.png",
-        ],
-        "choices": {
-            "1": ("Bildirimi aç", "S03.5_NOTİFİCATİON", ["O2"]),
-            "2": ("Telefonu kapat", "S09_LOOP_ROOM", []),
-            "3": ("Galeriyi aç", "S06_GALLERY", []),
-        },
+"S03_PHONE_LOCK": {
+    "text": (
+        "##Kilit ekranına bakıyorsun.||"
+        "##Eski bir bildirim var.||"
+        "##Bugüne ait değil. Gönderen bilinmiyor.||"
+    ),
+    "images": [
+        "images/s03_phone.png",
+        "images/s03_2.png",
+        "images/s03_3.png",
+    ],
+    "choices": {
+        "1": ("Bildirimi aç", "S03_5_NOTIFICATION", ["O2"]),
+        "2": ("Telefonu kapat", "S09_LOOP_ROOM", []),
+        "3": ("Galeriyi aç", "S06_GALLERY", []),
     },
+},
 
-    "S03.5_NOTİFİCATİON": {
-        "text": (
-            "##Kurtul ordan çabuk.||"
-            "Orası artık güvenli değil.|| "
-            "Kimseye güvenme."
-        ),
-        "images": [
-            [None, "images/s03.5_notification.png", None],
-        ],
-        "choices": {
-            "1": ("Koridora çık", "S04_CORRIDOR_After_NOTİFİCATİON", ["O2"]),
-            "2": ("Telefonu kapat", "S09_LOOP_ROOM", []),
-            "3": ("Galeriyi aç", "S06_GALLERY", []),
-        },
+"S03_5_NOTIFICATION": {
+    "text": (
+        "##Kurtul oradan. Çabuk.||"
+        "Orası artık güvenli değil.||"
+        "Kimseye güvenme.||"
+    ),
+    "images": [
+        None,
+        "images/s03_5_notification.png",
+        None,
+    ],
+    "choices": {
+        "1": ("Koridora çık", "S04_CORRIDOR_After_NOTIFICATION", ["O2"]),
+        "2": ("Telefonu kapat", "S09_LOOP_ROOM", []),
+        "3": ("Galeriyi aç", "S06_GALLERY", []),
     },
+},
+
 
     "S04_CORRIDOR": {
         "text": (
@@ -183,7 +186,7 @@ STORY_TR = {
 
 "S16_CAFETERIA_CHECK_AROUND": {
     "text": (
-        "Etrafına bakıyorsun.||"
+        "##Etrafına bakıyorsun.||"
         "Masalar düzenli.||"
         "Sessizlik fazla temiz.|||"
         "Kapının altından hafif bir gölge kayıyor.||"
@@ -195,32 +198,25 @@ STORY_TR = {
         "3": ("Kapıya kulak ver", "S16_CAFETERIA_LISTEN_DUO", []),
     },
 },
-
-"S16_CAFETERIA_ASK_MIDDLE": {
+"S16_CAFETERIA_CHECK_AROUND2": {
     "text": (
-        "Sen: \"Sen gerçekten… bensem…\"|||"
-        "Sen: \"O zaman hademe kim?\"|||"
-        "ORTANCA duraksıyor.||"
-        "Gözlerini kaçırıyor.|||"
-        "ORTANCA: \"Onu söyleyince… işler daha da karışıyor.\"|||"
-        "ORTANCA: \"Şimdilik sadece şunu bil:||"
-        "O bizi burada tutmak istiyor.\"|||"
-        "Sen: \"Neden?\"|||"
-        "ORTANCA: \"Çünkü…||"
-        "biz buradan çıkarsak…||"
-        "zaman çözülür.\""
+        "##Çabuk.||"
+        "Benimle gel.||"
+      
     ),
-"choices": {
-    "1": ("Tezgâhın arkasına geç", "S16_CAFETERIA_CHESS_SETUP_DUO", []),
-    "2": ("Etrafı kontrol et", "S16_CAFETERIA_CHECK_AROUND_DUO", []),
-    "3": ("Ortanca hale soru sor", "S16_CAFETERIA_ASK_MIDDLE_DUO", []),
+    "choices": {
+        "1": ("Tezgâha yönel", "S16_CAFETERIA_CHESS_SETUP_DUO", []),
+        "2": ("Saklan", "S16_CAFETERIA_HIDE_DUO", []),
+
+    },
 },
 
-},
+
+
 
 "S16_CAFETERIA_CHESS_SETUP_DUO": {
     "text": (
-        "Tezgâhın arkasına geçiyorsunuz .||"
+        "##Tezgâhın arkasına geçiyorsunuz .||"
         "Burası çalışanlara ait gibi duruyor.||"
         "Çekmeceler düzenli, ama biri denense şifreyle kilitlenmiş .|||"
         "Çekmeceyi zorluyorsun ama açılmıyor .||"
@@ -595,34 +591,25 @@ STORY_TR = {
         },
     },
     # Alias: Akış değişmesin diye S15_FIRE_EXIT'ı kilitli sahneye yönlendiriyoruz
-    "S15_FIRE_EXIT": {
-        "text": (
-            "##Yangın kapısının önündesin.||"
-            "Kolu indiriyorsun.||"
-            "Kımıldamıyor.||"
-            "Kilitli.||"
-        ),
-        "images": [None, "images/s15_fire_exit.png", None],
-        "effects": ["SET_FLAG_FIRE_EXIT_TRIED"],
-        "auto_next": "S15_FIRE_EXIT_LOCKED",
-        "auto_delay_ms": 0,
+"S15_FIRE_EXIT": {
+    "text": (
+        "##Yangın kapısının önündesin.||"
+        "Kolu indiriyorsun.||"
+        "Kımıldamıyor.||"
+        "Kilitli.||"
+    ),
+    "images": [
+        None,
+        "images/s15_fire_exit.png",
+        None,
+    ],
+    "choices": {
+        "1": ("Geri dön", "S04_CORRIDOR_After_camera", []),
+        "2": ("Odana dön", "S09_LOOP_ROOM_4", []),
+        "3": ("Yemekhaneye git", "S16_CAFETERIA_FROM_CAMERA", []),
     },
+},
 
-    "S15_FIRE_EXIT_LOCKED": {
-        "text": (
-            "Yangın kapısının önündesin.||"
-            "Kolu indiriyorsun.||"
-            "Kımıldamıyor.||"
-            "Kilitli.||"
-        ),
-        "images": [None, "images/s15_fire_exit.png", None],
-        "effects": ["SET_FLAG_FIRE_EXIT_TRIED"],
-        "choices": {
-            "1": ("Geri dön", "S04_CORRIDOR_After_camera", []),
-            "3": ("Yemekhaneye git", "S16_CAFETERIA_FROM_CAMERA", []),
-            "2": ("Odana dön", "S09_LOOP_ROOM_4", []),
-        },
-    },
 
     "S05_FOOTPRINT": {
         "layout": "single",
@@ -640,11 +627,11 @@ STORY_TR = {
 
     "S06_GALLERY_after_footprint": {
         "text": (
-            "Fotoğrafını çektin ve bakmak için galeriyi açtın ||"
-            "Galerinde eski fotoğraflar var.||"
+            "##Fotoğrafını çektin ve bakmak için galeriyi açtın ||"
+            "##Galerinde eski fotoğraflar var.||"
             "Çoğunu hatırlamıyorsun.||"
             "Ama biri öne çıkıyor:||"
-            "Koridor,"
+            "##Koridor,"
             "Gece,"
             "Ve sen."
         ),
@@ -663,10 +650,10 @@ STORY_TR = {
 
     "S06_GALLERY": {
         "text": (
-            "Galerinde eski fotoğraflar var.||"
-            "Çoğunu hatırlamıyorsun.||"
+            "##Galerinde eski fotoğraflar var.||"
+            "##Çoğunu hatırlamıyorsun.||"
             "Ama biri öne çıkıyor:||"
-            "Koridor,"
+            "##Koridor,"
             "Gece,"
             "Ve sen."
         ),
@@ -678,7 +665,7 @@ STORY_TR = {
         "effects": ["SET_FLAG_GALLERY_SEEN"],
         "choices": {
             "1": ("Fotoğrafı incele", "S10_MEMORY_GLITCH", []),
-            "2": ("Galeriden çık", "S04_CORRIDOR_AFTER_GALERY", []),
+            "2": ("Galeriden çık ve kapının önüne çık", "S04_CORRIDOR_AFTER_GALERY", []),
             "3": ("Fotoğrafı sil", "S09_LOOP_ROOM_2", []),
         },
     },
@@ -686,8 +673,8 @@ STORY_TR = {
     "S07_CAMERA_DOOR": {
         "text": (
             "##Kamera odasının kapısındasın.||"
-            "İçeriden hafif bir uğultu geliyor.||||"
-            "Kilitli değil."
+            "İçeriden hafif bir uğultu geliyor.||"
+            "Kapı açık ."
         ),
         "images": [None, "images/s07_camera_door.png", None],
         "choices": {
@@ -785,7 +772,7 @@ STORY_TR = {
     ],
     "choices": {
         "1": ("Onu görmezden gel ve saklan", "S16_CAFETERIA_SOLO", []),
-        "2": ("Onunla birlikte hareket et", "S16_CAFETERIA_WITH_MIDDLE", []),
+        "2": ("Onunla birlikte hareket et", "S16_CAFETERIA_CHECK_AROUND2", []),
         "3": ("Kim olduğunu anlamaya çalış", "END_CAUGHT_WHILE_REALIZING", []),
     },
 },
@@ -981,7 +968,51 @@ STORY_TR = {
             "3": ("Sessiz kal", "S15_STORAGE_LISTEN", []),
         },
     },
-
+    
+    "S15_CAFETERIA_STORAGE_LOCK": {
+        "text": (
+            "Deponun kapısına kulağının dayadın.||"
+            "İçerden bi ses geliyo .|||"
+            'Tanıdık bi ses'
+            'Anahtar kapının üzerinde'
+           
+        ),
+        "choices": {
+            "1": ("Tek başına yangın çıkışına git", "END_SOLO_ESCAPE_A", []),
+            "2": ("Kapıyı aç", "S17_ESCAPE_TOGETHER_OVERCOME_JANITOR", []),
+            "3": ("Sessiz kal", "S15_STORAGE_LISTEN", []),
+        },
+    },
+        "S15_CAFETERIA_STORAGE_LOCK": {
+        "text": (
+            "Deponun kapısına kulağının dayadın.||"
+            "İçerden bi ses geliyo .|||"
+            'Tanıdık bi ses'
+            'Anahtar kapının üzerinde'
+           
+        ),
+        "choices": {
+            "1": ("Tek başına yangın çıkışına git", "END_SOLO_ESCAPE_A", []),
+            "2": ("Kapıyı aç", "S15_CAFETERIA_STORAGE_LOCK2", []),
+           
+        },
+    },
+         "S15_CAFETERIA_STORAGE_LOCK": {
+        "text": (
+            "Deponun kapısını açtığın anda.||"
+            "Arkandan gelen yaşlı adam seni içeri atıp kapıyı üstüne gitliyor.|||"
+            'Sanki bunu yapıcağını biliyordu||'
+            'Hep orda bekliyordu|||'
+            'Sende kimsin ve neden burdasın'
+            ''
+           
+        ),
+        "choices": {
+            "1": ("Tek başına yangın çıkışına git", "END_SOLO_ESCAPE_A", []),
+            "2": ("Kapıyı aç", "S17_ESCAPE_TOGETHER_OVERCOME_JANITOR", []),
+           
+        },
+    },
     "S17_ESCAPE_TOGETHER_OVERCOME_JANITOR": {
         "text": (
             "ORTANCA: \"Tamam. Dinle.\"|||"
@@ -1595,7 +1626,7 @@ STORY_TR = {
 
 "S09_LOOP_ROOM": {
     "text": (
-        "Yatağındasın.||"
+        "##Yatağındasın.||"
         "Aynı oda.||"
         "Yine 02:17.||"
         "Ama bu sefer fark ediyorsun neden zaman ilerlemiyo."
@@ -1607,13 +1638,13 @@ STORY_TR = {
     ],
     "choices": {
         "1": ("Bu daha önce oldu", "S10_MEMORY_GLITCH", []),
-        "2": ("Hızla ayağa kalkSanki", "S04_CORRIDOR", []),
+        "2": ("Hızla dışarı çıkı", "S04_CORRIDOR", []),
         "3": ("Kıpırdama", "END_E02", []),
     },
 },
 "S09_LOOP_ROOM_after_cleaner_men": {
     "text": (
-        "Karnına doğru bi hamle yaptın.||"
+        "##Karnına doğru bi hamle yaptın.||"
         "Ama senin yumruğunu tutup seni yere yatırdı||"
         "Ve seni odana geri postaladı||"
         "Bi hademe neden dövüşmeyi bilirki amk."
@@ -1631,7 +1662,7 @@ STORY_TR = {
 },
 "S09_LOOP_ROOM_1": {
     "text": (
-        "Yatağındasın.||"
+        "##Yatağındasın.||"
         "Aynı oda.||"
         "Saat 02:17.||"
         "Dakikalar geçmiyor.||"
@@ -1648,7 +1679,7 @@ STORY_TR = {
 
 "S09_LOOP_ROOM_2": {
     "text": (
-        "Yatağındasın.||"
+        "##Yatağındasın.||"
         "Aynı oda.||"
         "Saat 02:17.||"
         "Nefes alıyorsun ama göğsün sanki geç tepki veriyor.||"
@@ -1665,7 +1696,7 @@ STORY_TR = {
 
 "S09_LOOP_ROOM_3": {
     "text": (
-        "Yatağındasın.||"
+        "##Yatağındasın.||"
         "Aynı oda.||"
         "Saat 02:17.||"
         "Duvarlar tanıdık… ama neden tanıdık olduğunu bilmiyorsun.||"
@@ -1682,7 +1713,7 @@ STORY_TR = {
 
 "S09_LOOP_ROOM_4": {
     "text": (
-        "Yatağındasın.||"
+        "##Yatağındasın.||"
         "Aynı oda.||"
         "Saat 02:17.||"
         "Oda bu sefer sessiz değil.||"
@@ -1700,11 +1731,11 @@ STORY_TR = {
 
     "S10_MEMORY_GLITCH": {
         "text": (
-            "Başın dönüyor.||"
+            "##Başın dönüyor.||"
             "Bir an her şey üst üste biniyor.||"
-            "Koridor.||"
+            "##Koridor.||"
             "Sesler.||"
-            "Bir tartışma."
+            "##Bir tartışma."
         ),
 "images": [
     "images/s10_glitch.png",     # SOL (blur loop bu olacak)
@@ -1712,7 +1743,7 @@ STORY_TR = {
     "images/s10_right.png",      # SAĞ (sabit)
 ],
         "choices": {
-            "1": ("Hatırayı zorla", "S14_PRE_CONFRONT", []),
+            "1": ("Kendini hatırlamaya zorla", "S14_PRE_CONFRONT", []),
             "2": ("Kendini durdur", "S09_LOOP_ROOM", []),
             "3": ("Sesin peşinden git", "S04_CORRIDOR", []),
         },
@@ -1786,10 +1817,10 @@ STORY_TR = {
   "layout": "single_focus",
   "image": "images/s12_camera_hint.png",
   "text": (
-    "##Gelip kapıyı dinliyor.||"
-    "Yürüyüşü tanıdık.||"
-    "Durmuyor…||"
-    "Sanki sen yürüyorsun gibi."
+    "##Biri olup olmadığını kontrol ediyorsun .||"
+    "Yok gibi.||"
+    "Sanırsam ||"
+    
   ),
   "choices": {
     "1": ("Kapıyı aç", "S11_CAMERA_ROOM", ["O1"]),
@@ -1801,89 +1832,128 @@ STORY_TR = {
 
     # -------- PART 3 (TR) --------
 
-    "S13_JANITOR_DIALOGUE": {
-        "text": (
-            "Temizlikçi arabaya yaslanıp seni süzüyor.||||"
-            "\"Yine sen mi?\" diyor.||"
-            "\"Geçen sefer de aynı saatti. 02:17.\"||||"
-            "Korkmuş gibi değil.||"
-            "Yorgun gibi."
-        ),
-        "image": "images/s13_janitor_dialogue.png",
-        "choices": {
-            "1": ("\"Geçen sefer\" ne demek?", "S16_JANITOR_INFO", []),
-            "2": ("Görmezden gel ve uzaklaş", "S04_CORRIDOR", []),
-            "3": ("Yalan söylediğini ima et", "S17_JANITOR_REACT", []),
-        },
+ "S13_JANITOR_DIALOGUE": {
+    "text": (
+        "##Temizlikçi arabaya yaslanıp seni süzüyor.||"
+        "Yine mi sen? diyor.||"
+        "Geçen sefer de aynı saatti. 02:17.||"
+        "Yüzünde tatminsiz bir ifadeyle.||"
+        "Biraz da yorgun gibi.||"
+    ),
+    "images": [
+        None,
+        "images/s13_janitor_dialogue.png",
+        None,
+    ],
+    "choices": {
+        "1": ("Geçen sefer ne demek?", "S16_JANITOR_INFO", []),
+        "2": ("Aniden kafeteryaya koş ", "S8.6_go_to_caffeteria", []),
+        "3": ("Yalan söylediğini ima et", "S8.4_ANSWER_HİM2", []),
     },
+},
 
-    "S14_PRE_CONFRONT": {
+    "S8.4_ANSWER_HİM2": {
         "text": (
-            "Nefesin hızlanıyor.||"
-            "Zihninde görüntüler parçalanıp birleşiyor.||||"
-            "Bir tartışma.||"
-            "Bir kapı.||"
-            "Bir cümle:||"
-            "\"Kimse bilmemeli.\""
+            "##YALAN SÖYLÜYORSUN.||"
+            "Sana güvenmiyorum.||"
+            "Bunu pek hoş karşılamyan bi ses tonu ve bakışla.||"
+            "Çabuk odana dön.||"
+            "Bu sana son uyarım.||"
         ),
-        "image": "images/s14_pre_confront.png",
+        "images": [None, "images/S08.5_DONT_LOOK_HİM", None],
         "choices": {
-            "1": ("Hatırayı kabul et", "S18_ACCEPT_MEMORY", ["O4"]),
-            "2": ("Reddet", "S09_LOOP_ROOM", []),
-            "3": ("Odaklan ve yürümeye devam et", "S04_CORRIDOR", []),
+            "1": ("Haddini bildir", "S09_LOOP_ROOM_after_cleaner_men", ["O3"]),
+            "2": ("Kafeteryaya doğru koş", "S8.6_go_to_caffeteria", []),
+            "3": ("Onu dinle ve odana geri dön", "S09_LOOP_ROOM_3", []),
         },
     },
+"S14_PRE_CONFRONT": {
+    "layout": "single_focus",
+    "text": (
+        "Nefesin hızlanıyor.||"
+        "Zihninde görüntüler parçalanıp birleşiyor.|||"
+        'Bir an '
+        "Bir tartışma.|||"
+        "-Bunu yapmana izin veremem."
+    ),
+    "image": "images/s14_pre_confront.png",
 
-    "S15_CAMERA_TRUTH": {
-        "text": (
-            "Kayıt başlıyor.||"
-            "Koridor görünüyor.||||"
-            "Sonra... sen.||"
-            "Ama yürüyüşün tuhaf.||"
-            "Acele yok.||"
-            "Sanki bekliyorsun.||||"
-            "Köşede zaman damgası:||"
-            "02:17"
-        ),
-        "image": "images/s15_camera_truth.png",
-        "choices": {
-            "1": ("İleri sar", "S19_CAMERA_ADVANCE", []),
-            "2": ("Ekranı telefonla kaydet", "S20_SAVE_PROOF", []),
-            "3": ("Panikle çık", "S04_CORRIDOR", []),
-        },
-    },
+    # ✅ Memory glitch / blur pulse efekti
+    "dizzy": {"mode": "blur", "intensity": "strong", "speed_ms": 60},
 
-    "S16_JANITOR_INFO": {
-        "text": (
-            "Bir süre susuyor.||"
-            "\"Bazı geceler burada tekrar eder,\" diyor.||||"
-            "\"İnsanlar ya fark etmez...||"
-            "ya da fark ettiğinde çok geç olur.\"||||"
-            "Sonra fısıldıyor:||"
-            "\"Kamera odasına gittin mi?\""
-        ),
-        "image": "images/s16_janitor_info.png",
-        "choices": {
-            "1": ("Evet de (kayıttan bahset)", "S21_JANITOR_PROOF", []),
-            "2": ("Hayır de (yalan söyle)", "S17_JANITOR_REACT", []),
-            "3": ("Ayak seslerini sor", "S22_JANITOR_FOOTSTEPS", []),
-        },
+    "choices": {
+        "1": ("kendini topla ve koridora çık", "S04_CORRIDOR", []),
     },
+},
 
-    "S17_JANITOR_REACT": {
+
+"S16_JANITOR_INFO": {
+    "text": (
+        "Bir süre susuyor.||"
+        "Bazı geceler bazen geçmez , diyor.|||"
+        "İnsanlar ya fark etmez...||"
+        "ya da fark ettiğinde çok geç olur.|||"
+        "Sonra fısıldıyor:||"
+        "\"Kamera odasına gittin mi?\""
+    ),
+    "images": [
+        None,
+        "images/s16_janitor_info.png",
+        None,
+    ],
+    "choices": {
+        "1": ("Evet de (yalan söyle)", "S8.4_ANSWER_HİM3", []),
+        "2": ("Hayır de", "S17_JANITOR_REACT", []),
+        "3": ("Ayak seslerini sor", "8.4_ANSWER_HİM4", []),
+    },
+},
+     "S8.4_ANSWER_HİM4": {
         "text": (
-            "Gözlerini kısıyor.||"
-            "\"Hâlâ inkâr ediyorsun,\" diyor.||||"
-            "Arabayı yavaşça itiyor.||"
-            "\"O zaman yine olur.\""
+            "Ayak sesimi.||"
+            "Burda tüm gece sadece ben vardımm.|||"
+            "Beli benim ayak sesimi duymuşsundur.||"
+            "Merak etme .||"
+            
         ),
-        "image": "images/s17_janitor_react.png",
+        "images": [None, "images/S08.5_DONT_LOOK_HİM", None],
         "choices": {
-            "1": ("Peşinden git", "S22_JANITOR_FOOTSTEPS", []),
-            "2": ("Kamera odasına dön", "S07_CAMERA_DOOR", []),
-            "3": ("Odaya kaç", "S09_LOOP_ROOM", []),
+            "1": ("Tehtidine karşılık ver", "S09_LOOP_ROOM_after_cleaner_men", ["O3"]),
+            "2": ("Kafeteryaya doğru koş", "S8.6_go_to_caffeteria", []),
+            "3": ("Onu dinle ve odana geri dön", "S09_LOOP_ROOM_3", []),
         },
     },
+    "S8.4_ANSWER_HİM3": {
+        "text": (
+            "##Pek hoş karşılamyan bi ses tonu ve bakışla.||"
+            "Bana yalan söylemen hiç hoşuma gitmedi.|||"
+            "Az önce ordaydım.||"
+            "Şimdi çabuk odana dön.||"
+            "Bu sana son uyarım.||"
+        ),
+        "images": [None, "images/S08.5_DONT_LOOK_HİM", None],
+        "choices": {
+            "1": ("Tehtidine karşılık ver", "S09_LOOP_ROOM_after_cleaner_men", ["O3"]),
+            "2": ("Kafeteryaya doğru koş", "S8.6_go_to_caffeteria", []),
+            "3": ("Onu dinle ve odana geri dön", "S09_LOOP_ROOM_3", []),
+        },
+    },
+"S17_JANITOR_REACT": {
+    "text": (
+        "Gözlerini kısıyor.||"
+        "Aradığın cevapları orada bulacaksın.||"
+        "Ama dikkatli ol.||"
+    ),
+    "images": [
+        None,
+        "images/s17_janitor_react.png",
+        None,
+    ],
+    "choices": {
+        "1": ("Kafeteryaya kaç", "S8.6_go_to_caffeteria", []),
+        "2": ("Kamera odasına git", "S07_CAMERA_DOOR", []),
+        "3": ("Odaya geri dön", "S09_LOOP_ROOM", []),
+    },
+},
 
  
 "END_E01": {
