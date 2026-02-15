@@ -17,7 +17,7 @@ STORY_TR = {
             "##Saat 02:17.||"
             "##Telefon ekranın açık ama bildirim yok.||"
             "##Koridordan düzenli ayak sesleri geliyor.||"
-            "■Fazla düzenli."
+            "Fazla düzenli."
         ),
         "images": [
             "images/s01_1_phone.png",

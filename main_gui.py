@@ -1531,13 +1531,19 @@ choice_containers = []
 audio_ui = None
 inv_ui = None
 
+# Atmosphere overlay (vignette)
+vignette_label = None
+vignette_img = None
+_vignette_job = None
+
+
 
 # ============================
 # ✅ SPEAKER HUD (auto by symbol)
 # ============================
 SPEAKER_MAP = {
-    "▲": {"name": "Hademe", "icon": "ui/speakers/janitor.png"},
-    "■": {"name": "Ortanca Ben", "icon": "ui/speakers/me_middle.png"},
+    "▲": {"name": "Hademe", "icon": "images/speakers/janitor.png"},
+    "■": {"name": "Ortanca Ben", "icon": "images/speakers/middle.png"},
     "●": {"name": "Genç Ben", "icon": "ui/speakers/me_young.png"},
 }
 DEFAULT_SPEAKER = {"name": "", "icon": None}
@@ -1966,6 +1972,72 @@ def try_start_flicker_hero(img_path: str):
 
 
 
+
+# ============================
+# ✅ Atmosphere (Vignette Overlay)
+# ============================
+def _build_vignette_image(w, h, strength=180, center_clear=0.38, power=1.7):
+    """Return a PhotoImage vignette overlay (transparent center, darker edges)."""
+    try:
+        import numpy as _np
+        from PIL import Image as _Image
+        # Safety clamps
+        w = max(64, int(w))
+        h = max(64, int(h))
+
+        yy, xx = _np.mgrid[0:h, 0:w]
+        cx, cy = (w - 1) / 2.0, (h - 1) / 2.0
+        dx = (xx - cx) / (w / 2.0)
+        dy = (yy - cy) / (h / 2.0)
+        d = _np.sqrt(dx * dx + dy * dy)
+
+        # 0 in center, 1+ at corners
+        t = (d - center_clear) / max(1e-6, (1.0 - center_clear))
+        t = _np.clip(t, 0.0, 1.0) ** power
+
+        alpha = (t * strength).astype(_np.uint8)
+
+        # Slight top-to-bottom darkening for mood
+        grad = (_np.linspace(0, 50, h).reshape(h, 1)).astype(_np.uint8)
+        alpha = _np.clip(alpha + grad, 0, 255).astype(_np.uint8)
+
+        rgba = _np.zeros((h, w, 4), dtype=_np.uint8)
+        rgba[..., 3] = alpha
+
+        im = _Image.fromarray(rgba, mode="RGBA")
+        return ImageTk.PhotoImage(im)
+    except Exception:
+        return None
+
+
+def _schedule_vignette_refresh(event=None):
+    """Debounced refresh so <Configure> doesn't rebuild every frame."""
+    global _vignette_job
+    try:
+        if _vignette_job is not None:
+            root.after_cancel(_vignette_job)
+    except Exception:
+        pass
+    _vignette_job = root.after(80, _refresh_vignette_now)
+
+
+def _refresh_vignette_now():
+    global vignette_img, vignette_label, _vignette_job
+    _vignette_job = None
+    if root is None or vignette_label is None:
+        return
+    try:
+        w = root.winfo_width()
+        h = root.winfo_height()
+        vi = _build_vignette_image(w, h)
+        if vi is None:
+            return
+        vignette_img = vi
+        vignette_label.configure(image=vignette_img)
+        vignette_label.image = vignette_img
+    except Exception:
+        pass
+
 def load_photo_fit(path, target_w, target_h, cache_dict):
     if not path:
         return None
@@ -2118,7 +2190,8 @@ def update_speaker_ui(speaker_data: dict):
 
     # ensure visible
     try:
-        speaker_frame.place(x=22, y=18)
+        # NOTE: SPEAKER_X / SPEAKER_Y are configured where the HUD is created (near the bottom UI setup).
+        speaker_frame.place(x=SPEAKER_X, y=SPEAKER_Y)
     except Exception:
         pass
 
@@ -2133,7 +2206,7 @@ def update_speaker_ui(speaker_data: dict):
         ph = speaker_photo_cache[ap]
     else:
         # 80x80 portrait
-        ph = load_photo_fit(str(icon_path), 80, 80, speaker_photo_cache)
+        ph = load_photo_fit(str(icon_path), 140, 140, speaker_photo_cache)
         speaker_photo_cache[ap] = ph
 
     if ph:
@@ -3821,7 +3894,7 @@ def show_main_menu():
     bg_label.place(x=0, y=0, relwidth=1, relheight=1)
     bg_label.lower()
 
-    card.pack(padx=30, pady=(600, 22), fill="x")
+    card.pack(side="bottom", padx=30, pady=(0, 90), fill="x")  # lift card up; tweak 90 later
     story_label.config(text="02:17\n\nAna Menü")
 
     def _open_settings():
@@ -3866,7 +3939,7 @@ def show_language_screen():
 
     _show_menu_logo_only()
 
-    card.pack(padx=30, pady=(600, 22), fill="x")
+    card.pack(side="bottom", padx=30, pady=(0, 90), fill="x")  # lift card up; tweak 90 later
     story_label.config(text="Select Language / Dil Seç")
 
     choice_buttons[0].config(text="English", command=set_english, state="normal")
@@ -4114,6 +4187,25 @@ except Exception as e:
 
 bg_label = tk.Label(root, image=bg_img, bg=BG_COLOR)
 bg_label.image = bg_img
+bg_label.place(x=0, y=0, relwidth=1, relheight=1)  # show background
+
+# ✅ Atmosphere overlay (vignette) - sits above BG but below everything else
+vignette_img = _build_vignette_image(root.winfo_screenwidth(), root.winfo_screenheight())
+vignette_label = tk.Label(root, image=vignette_img, bd=0, bg=BG_COLOR)
+vignette_label.image = vignette_img
+vignette_label.place(x=0, y=0, relwidth=1, relheight=1)
+# Keep it below the interactive UI
+try:
+    vignette_label.lift(bg_label)
+except Exception:
+    pass
+
+# Update vignette on resize (debounced)
+try:
+    root.bind("<Configure>", _schedule_vignette_refresh)
+except Exception:
+    pass
+
 
 # Triptych canvas (default)
 carousel_canvas = tk.Canvas(root, width=CAROUSEL_W, height=CAROUSEL_H, bg=BG_COLOR, highlightthickness=0, bd=0)
@@ -4122,15 +4214,23 @@ carousel_canvas.place(relx=0.5, y=30, anchor="n")
 # Card
 card = tk.Frame(root, bg=BG_COLOR, bd=2, relief="groove")
 
+
+# --- FIX: keep bottom card height constant (no auto-grow) ---
+CARD_H = 360  # adjust later (e.g., 420/520/650)
+card.configure(height=CARD_H)
+card.pack_propagate(False)
 story_label = tk.Label(card, text="Select Language / Dil Seç",
-                       font=("Segoe UI Semibold", 18), wraplength=1400, justify="center",
+                       font=("Segoe UI Semibold", 22), wraplength=1500, justify="center",
                        bg=BG_COLOR, fg="white")
-story_label.pack(padx=(140, 22), pady=(18, 16))
+story_label.configure(anchor="n")  # text starts from top
+story_label.pack(padx=(140, 22), pady=(10, 10), fill="x")  # fixed: top-aligned text area
 
 
 # ✅ Speaker HUD (portrait + name) - left side inside the text card
 speaker_frame = tk.Frame(card, bg=BG_COLOR)
-speaker_frame.place(x=22, y=18)
+SPEAKER_X = 540  # move right by increasing this
+SPEAKER_Y = 18
+speaker_frame.place(x=SPEAKER_X, y=SPEAKER_Y)
 
 speaker_img_label = tk.Label(speaker_frame, bg=BG_COLOR, bd=0)
 speaker_img_label.pack()
@@ -4140,7 +4240,7 @@ speaker_name_label = tk.Label(
     text="",
     fg="white",
     bg=BG_COLOR,
-    font=("Segoe UI Semibold", 16),
+    font=("Segoe UI Semibold", 18),
     justify="left"
 )
 speaker_name_label.pack(pady=(6, 0))
@@ -4164,7 +4264,7 @@ for _i in range(4):
 
     btn = tk.Button(border, text="", width=24, height=1, bd=0, relief="flat",
                     bg="#1a2440", fg="white", activebackground="#24335c",
-                    activeforeground="white", font=("Segoe UI Semibold", 16))
+                    activeforeground="white", font=("Segoe UI Semibold", 18))
     btn.pack(padx=2, pady=2)
     choice_buttons.append(btn)
 
