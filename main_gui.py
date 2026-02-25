@@ -365,6 +365,281 @@ def show_ending_cinematic(scn):
 
 
 
+
+
+# ============================================================
+# ✅ ENDING SEQUENCE (intro-style multi-image cinematic before black ending screen)
+#    Usage in game_story scene:
+#      "ending": True,
+#      "ending_sequence_cfg": {
+#           "images": ["images/year1.png", "images/year2.png", ...],
+#           "holds_ms": [4000, 6000, 4000, 4000],
+#           "fade_steps": 64,
+#           "instant_switch": True,
+#           "between_fade_ms": 0
+#      }
+# ============================================================
+
+_endseq_overlay = None
+_endseq_running = False
+
+def stop_ending_sequence_overlay():
+    global _endseq_overlay, _endseq_running
+    try:
+        if _endseq_overlay is not None:
+            _endseq_overlay.destroy()
+    except Exception:
+        pass
+    _endseq_overlay = None
+    _endseq_running = False
+
+
+def _finish_sequence_to_ending(scn: dict):
+    try:
+        stop_ending_sequence_overlay()
+    except Exception:
+        pass
+    try:
+        show_ending_cinematic(scn)
+    except Exception:
+        pass
+
+def show_ending_sequence_cinematic(scn: dict, cfg: dict):
+    """
+    ✅ Stable, no-flash ending sequence:
+      - Uses an always-opaque overlay (NO window transparency), so the previous scene never shows through.
+      - Fade is done by blending the image with black (PIL), not by making the window transparent.
+      - Supports:
+          images: [..]
+          holds_ms: [..]
+          fade_in_ms: 5000   (black -> image)
+          fade_out_ms: 4000  (image -> black)
+          fade_steps: 64
+          cover: True/False  (default True)
+      - After the sequence finishes, runs the normal ending cinematic (show_ending_cinematic).
+    """
+    global _endseq_overlay, _endseq_running
+
+    if _endseq_running:
+        return
+    stop_ending_sequence_overlay()
+    _endseq_running = True
+
+    # Hide game UI behind
+    try:
+        hide_choices_ui()
+        disable_choices()
+    except Exception:
+        pass
+    try:
+        carousel_canvas.place_forget()
+    except Exception:
+        pass
+    try:
+        card.place_forget()
+    except Exception:
+        pass
+
+    # Build list of images
+    images = []
+    if isinstance(cfg, dict):
+        if isinstance(cfg.get("images"), (list, tuple)):
+            images = [str(x) for x in cfg.get("images") if x]
+        else:
+            for k in ("image1", "image2", "image3", "image4"):
+                if cfg.get(k):
+                    images.append(str(cfg.get(k)))
+
+    if not images:
+        stop_ending_sequence_overlay()
+        try:
+            show_ending_cinematic(scn)
+        except Exception:
+            pass
+        return
+
+    # Holds
+    if isinstance(cfg.get("holds_ms"), (list, tuple)):
+        holds = [int(x) for x in cfg.get("holds_ms")]
+    else:
+        hold1 = int(cfg.get("hold1_ms", 1200))
+        hold2 = int(cfg.get("hold2_ms", 1200))
+        holds = [hold1] + ([hold2] * (len(images) - 1))
+
+    if len(holds) < len(images):
+        holds = holds + [holds[-1] if holds else 1200] * (len(images) - len(holds))
+    holds = holds[:len(images)]
+
+    fade_steps = max(8, int(cfg.get("fade_steps", 64)))
+    fade_in_ms = max(0, int(cfg.get("fade_in_ms", 0)))
+    fade_out_ms = max(0, int(cfg.get("fade_out_ms", 0)))
+    use_cover = bool(cfg.get("cover", True))
+
+    # Screen size (overlay size)
+    try:
+        sw, sh = max(1, root.winfo_width()), max(1, root.winfo_height())
+    except Exception:
+        sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+
+    # Create always-opaque overlay
+    ov = tk.Toplevel(root)
+    ov.configure(bg="black")
+    ov.overrideredirect(True)
+    try:
+        ov.attributes("-topmost", True)
+        ov.attributes("-alpha", 1.0)  # IMPORTANT: never transparent -> no background flash
+    except Exception:
+        pass
+    try:
+        ov.geometry(f"{sw}x{sh}+{root.winfo_rootx()}+{root.winfo_rooty()}")
+    except Exception:
+        ov.geometry("+0+0")
+    _endseq_overlay = ov
+
+    lbl = tk.Label(ov, bg="black", bd=0)
+    lbl.place(relx=0.5, rely=0.5, anchor="center")
+
+    if not PIL_OK:
+        # If PIL isn't available, fallback to previous implementation using alpha (may flash).
+        # But in your project PIL should be available.
+        try:
+            # Reuse the legacy alpha-based path quickly:
+            legacy_cfg = dict(cfg)
+            legacy_cfg.setdefault("instant_switch", False)
+            legacy_cfg.setdefault("fade_in_ms", fade_in_ms)
+            legacy_cfg.setdefault("fade_out_ms", fade_out_ms)
+        except Exception:
+            legacy_cfg = cfg
+        # Soft fallback: just show first image then go to ending
+        try:
+            ph = load_photo_cover(images[0], sw, sh, _img_cache) if use_cover else load_photo_fit(images[0], sw, sh, _img_cache)
+            if ph:
+                lbl.config(image=ph)
+                lbl.image = ph
+        except Exception:
+            pass
+        root.after(int(holds[0]) if holds else 1200, lambda: _finish_sequence_to_ending(scn))
+        return
+
+    # --- PIL helpers ---
+    def _load_pil_frame(path_str: str):
+        ap = abs_path(path_str)
+        if not os.path.exists(ap):
+            print("[ENDSEQ] MISSING:", ap)
+            return None
+        im = Image.open(ap).convert("RGBA")
+        w, h = im.size
+        if use_cover:
+            scale = max(sw / w, sh / h)
+        else:
+            scale = min(sw / w, sh / h)
+        nw = max(1, int(w * scale))
+        nh = max(1, int(h * scale))
+        im2 = im.resize((nw, nh), Image.LANCZOS)
+
+        if use_cover:
+            # center crop to exact screen
+            left = max(0, (nw - sw) // 2)
+            top = max(0, (nh - sh) // 2)
+            im3 = im2.crop((left, top, left + sw, top + sh))
+        else:
+            # letterbox: paste into black canvas
+            bg = Image.new("RGBA", (sw, sh), (0, 0, 0, 255))
+            x = (sw - nw) // 2
+            y = (sh - nh) // 2
+            bg.paste(im2, (x, y), im2)
+            im3 = bg
+        return im3
+
+    pil_frames = [_load_pil_frame(p) for p in images]
+    if not any(pil_frames):
+        stop_ending_sequence_overlay()
+        try:
+            show_ending_cinematic(scn)
+        except Exception:
+            pass
+        return
+
+    black = Image.new("RGBA", (sw, sh), (0, 0, 0, 255))
+
+    def _set_blend(frame_idx: int, t: float):
+        """t=0 -> black, t=1 -> full image"""
+        if not _endseq_running:
+            return
+        base = pil_frames[frame_idx]
+        if base is None:
+            return
+        t = 0.0 if t < 0 else (1.0 if t > 1 else float(t))
+        im = Image.blend(black, base, t)
+        ph = ImageTk.PhotoImage(im)
+        lbl.config(image=ph)
+        lbl.image = ph
+
+    def _anim(frame_idx: int, start_t: float, end_t: float, total_ms: int, on_end):
+        steps = fade_steps if total_ms > 0 else 1
+        delay = max(15, total_ms // steps) if total_ms > 0 else 0
+        dt = (end_t - start_t) / float(steps)
+
+        def _step(i=0):
+            if not _endseq_running:
+                return
+            t = start_t + dt * i
+            _set_blend(frame_idx, t)
+            if i >= steps:
+                on_end()
+                return
+            root.after(delay, lambda: _step(i + 1))
+
+        _step(0)
+
+    def _finish_sequence_to_ending():
+        stop_ending_sequence_overlay()
+        try:
+            show_ending_cinematic(scn)
+        except Exception:
+            pass
+
+    def _show_idx(i=0):
+        if not _endseq_running:
+            return
+        if i >= len(pil_frames):
+            _finish_sequence_to_ending()
+            return
+
+        # Always start each frame fully black (prevents any flash)
+        _set_blend(i, 0.0)
+
+        # Fade in
+        def _after_in():
+            if not _endseq_running:
+                return
+            hold_ms = int(holds[i]) if i < len(holds) else 1200
+
+            # Last frame: hold -> fade out -> finish
+            if i == len(pil_frames) - 1:
+                if fade_out_ms > 0:
+                    root.after(hold_ms, lambda: _anim(i, 1.0, 0.0, fade_out_ms, _finish_sequence_to_ending))
+                else:
+                    root.after(hold_ms, _finish_sequence_to_ending)
+                return
+
+            # Between frames: hold -> fade out -> next
+            def _after_out():
+                _show_idx(i + 1)
+
+            if fade_out_ms > 0:
+                root.after(hold_ms, lambda: _anim(i, 1.0, 0.0, fade_out_ms, _after_out))
+            else:
+                root.after(hold_ms, _after_out)
+
+        if fade_in_ms > 0:
+            _anim(i, 0.0, 1.0, fade_in_ms, _after_in)
+        else:
+            _set_blend(i, 1.0)
+            _after_in()
+
+    _show_idx(0)
+
 class GameState:
     def __init__(self):
         self.flags = set()   # F_* ve O* gibi
@@ -1051,7 +1326,21 @@ except Exception:
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 bg_path = os.path.join(BASE_DIR, "images", "bg.png")
-logo_path = os.path.join(BASE_DIR, "images", "logo.png")
+logo_path = os.path.join(BASE_DIR, "images", "game_logo.png")
+# Fallback to legacy name if the new one does not exist
+if not os.path.exists(logo_path):
+    logo_path = os.path.join(BASE_DIR, "images", "logo.png")
+
+def get_logo_rel_path():
+    """Return a relative logo path preferred by the UI (new name first)."""
+    try:
+        p_new = os.path.join(BASE_DIR, "images", "game_logo.png")
+        if os.path.exists(p_new):
+            return "images/game_logo.png"
+    except Exception:
+        pass
+    return "images/logo.png"
+
 settings_icon_path = os.path.join(BASE_DIR, "images", "settings_icon.png")
 
 MUSIC_LOOP = os.path.join(BASE_DIR, "sounds", "atari_loop.mp3")  # preferred
@@ -2042,6 +2331,92 @@ def load_photo_fit(path, target_w, target_h, cache_dict):
     if not path:
         return None
     ap = abs_path(path)
+    key = (ap, int(target_w), int(target_h), "fit")
+
+    if key in cache_dict:
+        return cache_dict[key]
+    if not os.path.exists(ap):
+        # don't permanently cache None for logo-like assets; but keep for others
+        cache_dict[key] = None
+        print("[IMG] MISSING:", ap)
+        return None
+
+    if PIL_OK:
+        try:
+            im = Image.open(ap).convert("RGBA")
+            w, h = im.size
+            scale = min(float(target_w) / w, float(target_h) / h)
+            nw = max(1, int(w * scale))
+            nh = max(1, int(h * scale))
+            im2 = im.resize((nw, nh), Image.LANCZOS)
+            img = ImageTk.PhotoImage(im2)
+            cache_dict[key] = img
+            return img
+        except Exception as e:
+            print("PIL LOAD ERROR (fit):", ap, e)
+
+    # Tk fallback (no PIL)
+    try:
+        img_raw = tk.PhotoImage(file=ap)
+        w, h = img_raw.width(), img_raw.height()
+        # subsample to roughly fit
+        scale = max(w / float(target_w), h / float(target_h))
+        factor = max(1, math.ceil(scale))
+        img = img_raw.subsample(factor, factor) if factor > 1 else img_raw
+        cache_dict[key] = img
+        return img
+    except Exception as e:
+        print("TK LOAD ERROR (fit):", ap, e)
+        cache_dict[key] = None
+        return None
+
+
+def load_photo_cover(path, target_w, target_h, cache_dict):
+    """Scale image to fully cover target area (center-crop). Requires PIL for proper cropping."""
+    if not path:
+        return None
+    ap = abs_path(path)
+    key = (ap, target_w, target_h, "cover")
+
+    if key in cache_dict:
+        return cache_dict[key]
+    if not os.path.exists(ap):
+        cache_dict[key] = None
+        print("[IMG] MISSING:", ap)
+        return None
+
+    if PIL_OK:
+        try:
+            im = Image.open(ap).convert("RGBA")
+            w, h = im.size
+            # cover scaling
+            scale = max(target_w / w, target_h / h)
+            nw = max(1, int(w * scale))
+            nh = max(1, int(h * scale))
+            im2 = im.resize((nw, nh), Image.LANCZOS)
+
+            # center crop
+            left = max(0, (nw - target_w) // 2)
+            top = max(0, (nh - target_h) // 2)
+            right = left + target_w
+            bottom = top + target_h
+            im3 = im2.crop((left, top, right, bottom))
+
+            img = ImageTk.PhotoImage(im3)
+            cache_dict[key] = img
+            return img
+        except Exception as e:
+            print("PIL LOAD ERROR (cover):", ap, e)
+
+    # Fallback without PIL: best-effort fit (no crop)
+    try:
+        img = load_photo_fit(path, target_w, target_h, cache_dict)
+        cache_dict[key] = img
+        return img
+    except Exception:
+        cache_dict[key] = None
+        return None
+    ap = abs_path(path)
     key = (ap, target_w, target_h)
 
     if key in cache_dict:
@@ -2288,7 +2663,7 @@ def place_slot(slot_key, photo, x, y):
 
 def show_logo_on_canvas():
     carousel_clear()
-    logo = load_photo_fit("images/logo.png", int(carousel_canvas.cget("width")),
+    logo = load_photo_fit(get_logo_rel_path(), int(carousel_canvas.cget("width")),
                           int(carousel_canvas.cget("height")), _img_cache)
     if logo:
         w = int(carousel_canvas.cget("width"))
@@ -2795,28 +3170,197 @@ def show_choices_ui(indices):
             pass
 
 
-def go_to(scene_id):
-    # Always hard-clear previous scene visuals on any scene change.
+# ------------------------------------------------------------
+# Fade transition helpers (scene-level, no fullscreen changes)
+# Scene config supported:
+#   fade_to_black_ms / fade_out_ms: fade current scene to black before switching
+#   fade_from_black_ms / fade_in_ms: fade in from black after loading next scene
+#   post_fade_hold_ms: keep black screen for N ms after fade-out completes
+# ------------------------------------------------------------
+_fade_overlay = None
+_fade_overlay_label = None
+_fade_job = None
+
+def _ensure_fade_overlay():
+    global _fade_overlay, _fade_overlay_label
+    if _fade_overlay is not None and _fade_overlay.winfo_exists():
+        return
+    # Create a black, click-through-like overlay above the root window
+    ov = tk.Toplevel(root)
+    ov.overrideredirect(True)
+    ov.attributes("-topmost", True)
     try:
-        carousel_clear()
+        ov.attributes("-alpha", 0.0)
     except Exception:
+        pass
+    # match root geometry on each use
+    lbl = tk.Label(ov, bg="black")
+    lbl.pack(fill="both", expand=True)
+    _fade_overlay = ov
+    _fade_overlay_label = lbl
+    try:
+        ov.withdraw()
+    except Exception:
+        pass
+
+def _position_fade_overlay():
+    if _fade_overlay is None or (not _fade_overlay.winfo_exists()):
+        return
+    try:
+        root.update_idletasks()
+        w = max(1, root.winfo_width())
+        h = max(1, root.winfo_height())
+        x = root.winfo_rootx()
+        y = root.winfo_rooty()
+        _fade_overlay.geometry(f"{w}x{h}+{x}+{y}")
+    except Exception:
+        pass
+
+def _cancel_fade_jobs():
+    global _fade_job
+    if _fade_job is not None and root is not None:
         try:
-            stop_video()
+            root.after_cancel(_fade_job)
         except Exception:
             pass
+    _fade_job = None
 
+def _fade_to(alpha_target, duration_ms, on_done=None, steps=24):
+    """Fade overlay alpha to target over duration_ms."""
+    global _fade_job
+    _ensure_fade_overlay()
+    _position_fade_overlay()
+    try:
+        _fade_overlay.deiconify()
+        _fade_overlay.lift()
+    except Exception:
+        pass
+
+    try:
+        cur = float(_fade_overlay.attributes("-alpha"))
+    except Exception:
+        cur = 0.0
+
+    duration_ms = max(0, int(duration_ms or 0))
+    if duration_ms == 0 or steps <= 1:
+        try:
+            _fade_overlay.attributes("-alpha", float(alpha_target))
+        except Exception:
+            pass
+        if alpha_target <= 0.0:
+            try:
+                _fade_overlay.withdraw()
+            except Exception:
+                pass
+        if on_done:
+            on_done()
+        return
+
+    step_ms = max(10, duration_ms // steps)
+    delta = (float(alpha_target) - cur) / float(steps)
+
+    _cancel_fade_jobs()
+    i = 0
+
+    def _tick():
+        nonlocal i, cur
+        i += 1
+        cur += delta
+        # clamp
+        if i >= steps:
+            cur = float(alpha_target)
+        try:
+            _fade_overlay.attributes("-alpha", cur)
+        except Exception:
+            pass
+        if i >= steps:
+            if float(alpha_target) <= 0.0:
+                try:
+                    _fade_overlay.withdraw()
+                except Exception:
+                    pass
+            if on_done:
+                on_done()
+            return
+        _fade_job = root.after(step_ms, _tick)
+
+    _fade_job = root.after(step_ms, _tick)
+
+def _fade_out_then_switch(next_scene_id, do_switch_fn):
+    """Fade out current scene if configured, then call do_switch_fn(), then fade in if configured."""
+    if not story or next_scene_id not in story:
+        do_switch_fn()
+        return
+
+    cur_scene = scene or {}
+    nxt_scene = story.get(next_scene_id, {}) or {}
+
+    out_ms = int(cur_scene.get("fade_to_black_ms", cur_scene.get("fade_out_ms", 0)) or 0)
+    hold_ms = int(cur_scene.get("post_fade_hold_ms", 0) or 0)
+
+    # Fade-in duration can come from next scene, otherwise mirror fade-out
+    in_ms = int(nxt_scene.get("fade_from_black_ms", nxt_scene.get("fade_in_ms", out_ms)) or 0)
+
+    def _after_hold():
+        do_switch_fn()
+        # Fade in (if requested)
+        if in_ms > 0:
+            # ensure overlay is fully black before fading in
+            _fade_to(1.0, 0, on_done=lambda: _fade_to(0.0, in_ms))
+        else:
+            # no fade-in requested
+            _fade_to(0.0, 0)
+
+    if out_ms > 0:
+        # Fade to black, then hold, then switch
+        _fade_to(1.0, out_ms, on_done=lambda: root.after(max(0, hold_ms), _after_hold))
+    else:
+        # No fade-out; but if next scene explicitly wants fade-in, briefly start at black
+        if in_ms > 0:
+            _fade_to(1.0, 0, on_done=_after_hold)
+        else:
+            _after_hold()
+
+def go_to(scene_id):
+    """
+    Scene change with optional fade transitions.
+
+    IMPORTANT: We must keep the CURRENT scene visible during fade-out.
+    So we DO NOT clear/stop media until the moment we actually switch.
+    """
     global current
     cancel_auto_next()
     stop_clicks()
 
-    if story and scene_id in story:
-        current = scene_id
-        load_scene()
-    else:
+    if not (story and scene_id in story):
         print("[GO_TO ERROR] missing scene:", scene_id)
+        return
 
+    sid = str(scene_id)
+
+    def _switch():
+        # Clear previous scene visuals right before switching
+        try:
+            carousel_clear()
+        except Exception:
+            try:
+                stop_video()
+            except Exception:
+                pass
+
+        global current
+        current = sid
+        load_scene()
+
+    # Apply fade transition if configured on current scene and/or next scene
+    try:
+        _fade_out_then_switch(sid, _switch)
+    except Exception:
+        # Fallback: hard switch on any unexpected fade error
+        _switch()
 
 def cancel_auto_next():
+
     """Cancel any scheduled auto-next transition."""
     global _auto_next_job, _auto_next_scheduled
     _auto_next_scheduled = False
@@ -2985,21 +3529,34 @@ def play_text_segments_only(seg_list):
     segments = seg_list[:] if seg_list else [""]
     seg_i = 0
 
+
     def finish_all():
+        # Stop SFX if needed (unless the scene explicitly keeps it)
         if sfx_started_this_scene and not scene.get("keep_sfx_after_scene", False) and scene.get("end_sound") != "ambience":
             stop_sfx_loop()
-        if schedule_auto_next_after_scene():
-            return
-        if schedule_auto_next_after_scene():
-            return
 
-        # ✅ ENDING cinematic
+        # ✅ ENDING cinematic: run ending flow here (and DO NOT auto-next instantly)
         if scene and scene.get("ending") is True:
+            seq_cfg = scene.get("ending_sequence_cfg") or scene.get("ending_sequence") or scene.get("ending_seq_cfg")
+            if isinstance(seq_cfg, dict):
+                try:
+                    cancel_auto_next()
+                except Exception:
+                    pass
+                show_ending_sequence_cinematic(scene, seq_cfg)
+                return
+
             show_ending_cinematic(scene)
             return
 
+        # Normal flow: schedule auto-next if configured
+        if schedule_auto_next_after_scene():
+            return
+
+        # Otherwise show buttons / allow interaction
         show_buttons_for_scene()
 
+        # Start ambience if requested
         if scene and scene.get("end_sound") == "ambience":
             start_sfx_this_scene()
 
@@ -3277,6 +3834,25 @@ def load_scene():
         _overlay_step_points = pts
         _overlay_step_fired = set()
         # ✅ HERO giriş animasyonu: önce görsel pop-in, sonra yazı akar
+        # ✅ If this is an ENDING scene with an ending_sequence_cfg, run the stable sequence cinematic
+        #    immediately (no hero pop-in). This prevents 1-frame flashes / stray frames between scenes.
+        if scene.get("ending") is True:
+            seq_cfg = scene.get("ending_sequence_cfg") or scene.get("ending_sequence") or scene.get("ending_seq_cfg")
+            if isinstance(seq_cfg, dict):
+                try:
+                    cancel_auto_next()
+                except Exception:
+                    pass
+                show_ending_sequence_cinematic(scene, seq_cfg)
+                try:
+                    if inv_ui:
+                        inv_ui.refresh()
+                except Exception:
+                    pass
+                return
+
+        
+        # ✅ HERO giriş animasyonu: önce görsel pop-in, sonra yazı akar
         pop_in_hero(one, on_done=lambda: (start_video(scene.get('video', None), current), play_text_segments_only(seg_list)))
 
         try:
@@ -3547,7 +4123,7 @@ def _show_menu_logo_only():
         menu_logo_label = tk.Label(root, bg=BG_COLOR, bd=0)
 
     try:
-        logo = load_photo_fit("images/logo.png", 1500, 540, _img_cache)
+        logo = load_photo_fit(get_logo_rel_path(), 1500, 540, _img_cache)
     except Exception:
         logo = None
 
@@ -3977,7 +4553,7 @@ def show_splash_logo(duration_ms=1400):
     splash.overrideredirect(True)
     splash.configure(bg=BG_COLOR)
 
-    logo = load_photo_fit("images/logo.png", 1800, 720, _img_cache)
+    logo = load_photo_fit(get_logo_rel_path(), 1800, 720, _img_cache)
 
     sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
     w, h = 1090, 720

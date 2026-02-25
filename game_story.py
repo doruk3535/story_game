@@ -103,7 +103,7 @@ STORY_TR = {
         },
     },
 
-    "S04_CORRIDOR_After_NOTİFİCATİON": {
+    "S04_CORRIDOR_After_NOTIFICATION": {
         "text": (
             "##Koridor sessiz.||"
             "Işıklar hafifçe titriyor.||"
@@ -291,30 +291,63 @@ STORY_TR = {
         "Ayak sesleriniz aynı ritimde büyüyor.|||"
         "Işıklar titriyor.||"
         "Sanki her titreme başka bir saniyeyi yutuyor.|||"
-        "Yangın çıkışı tabelası beliriyor.|||"
+        "##Yangın çıkışı tabelası beliriyor.|||"
         "Kapıya vardığında anahtarı kilide sokuyorsun.||"
-        "Elin titriyor… ama çeviriyorsun.|||"
+        "##Elin titriyor… ama çeviriyorsun.|||"
         "Tık.|||"
         "Kapı açılıyor ve—|||"
         "Bir koridor değil.||"
         "Bir boşluk.|||"
-        "Kapının içi kıvrılıyor.||"
-        "Işık değil… zaman dönüyor.|||"
-        "Bir ZAMAN PORTALI.|||"
-        "Arkanızdan bir ses:|||"
-        "\"DUR!\"|||"
-        "Hademe görünüyor.||"
-        "Yaşlı… yorgun… ama gözleri saplantılı.|||"
-        "Koşamıyor.||"
-        "Ama sesi yetiyor.|||"
-        "\"Bir adım daha atarsanız… her şey tekrar parçalanır.\"|||"
-        "ORTANCA dişlerini sıkıyor: \"Yalan söylüyor.\"|||"
-        "Hademe başını sallıyor.|||"
-        "\"Ben… hepinizi biliyorum.\"|||"
-        "\"Çünkü ben de sizim.\"|||"
-        "Bir an sessizlik.||"
-        "Portalın içi dalgalanıyor.|||"
-        "Hademe konuşmaya başlıyor:|||"
+
+    ),
+    "images": [
+        "images/s17_duo_escape_1_run_corridor.png",
+        "images/scene_fire_exit_door.png",
+        "images/s17_duo_escape_3_janitor_reveal.png",
+    ],
+    "auto_next": "S17_DUO_PORTAL_OPENS",
+    "auto_next_after": True,
+    "auto_next_delay_ms": 250,
+},
+
+"S17_DUO_PORTAL_OPENS": {
+    # ✅ fallback görsel: gerçekten var olan bir PNG olmalı
+    # sende bg.png var görünüyor, istersen onu koy:
+    "image": "images/image_copy.png",
+
+    # ✅ MP4 oynat
+    "video": {
+        "path": "images/portal_anim/portal.mp4",
+        "fps": 24,
+        "loop": True
+    },
+
+    "text": (
+        "##Kapının içi daha da kıvrılıyor.|||"
+        "Sanki metal değil… anıların kenarı bükülüyor.|||"
+        "Hava soğuyor.||"
+        "Işıklar bir anlığına susuyor.|||"
+        "Portal genişliyor—|||"
+        "İçinde dönen şey artık sadece ışık değil.||"
+        "Saniyeler.||"
+        "Günler.||"
+        "Aynı anın kırık parçaları.|||"
+        "Uğultu yükseliyor.|||"
+        "Ortanca halin fısıldıyor: \"Açıldı…\"|||"
+        "Hademe gözünü portaldan ayırmıyor.|||"
+        "\"Şimdi karar verin.\""
+    ),
+
+    "auto_next": "S17_DUO_TALK_WITH_JANITOR",
+    "auto_next_after": True,
+    "auto_next_delay_ms": 350,
+},
+"S17_DUO_TALK_WITH_JANITOR": {
+    "layout": "single",
+    "image": "images/s17_duo_talk_with_janitor.png",
+
+    "text": (
+        "##Hademe konuşmaya başlıyor:|||"
         "\"Ben bu döngüyü başlatan kişiyim.\"|||"
         "\"Karımı ve kızımı kaybettim… ve bunu kabullenemedim.\"|||"
         "\"Zamanla oynadım.||"
@@ -341,6 +374,7 @@ STORY_TR = {
         "Bir saniyen var.||"
         "Ya bir kader… ya bir kaçış."
     ),
+
     "choices": {
         "1": ("Ortanca halinle kaç", "END_DUO_ESCAPE_TWO_LEAVE", []),
         "2": ("Ortanca halini gönder, sen kal", "END_DUO_STAY_SOLO_SACRIFICE", []),
@@ -348,18 +382,19 @@ STORY_TR = {
     },
 },
 
+# 1) Portal sonrası yatak / 02:18 (otomatik)
 "END_DUO_ESCAPE_TWO_LEAVE": {
     "text": (
         "##Ortanca halin bileğini yakalıyorsun.|||"
         "Sen: \"Koş.\"|||"
         "ORTANCA bir an tereddüt ediyor.||"
         "Sonra gözlerini kısıyor: \"Tamam.\"|||"
-        "İkiniz birden portala hamle ediyorsunuz.|||"
+        "##İkiniz birden portala hamle ediyorsunuz.|||"
         "Hademe arkanızdan bağırıyor:|||"
         "\"YAPMAYIN!\"|||"
         "\"Bu bir son değil…\"|||"
         "\"Bu bir kırılma!\"|||"
-        "Ama artık duymuyorsun.|||"
+        "##Ama artık duymuyorsun.|||"
         "Portalın içi sizi yutuyor.|||"
         "Kulakların uğulduyor.||"
         "Gözlerin yanıyor.|||"
@@ -372,16 +407,72 @@ STORY_TR = {
         "Yatak.|||"
         "Tavan.|||"
         "Telefon ekranı.|||"
-        "Saat: 02:18.|||"
-        "Ortanca halin yanında nefes nefese.|||"
-        "ORTANCA fısıldıyor: \"Başardık mı?\"|||"
-        "Cevap veremiyorsun.||"
-        "Çünkü telefonuna bir bildirim düşüyor.|||"
+        "Saat: 02:18."
+    ),
+    "images": [
+        "images/end_duo_two_leave_1_dash_into_portal.png",
+        "images/end_duo_two_leave_2_time_layers_flash.png",
+        "images/end_duo_two_leave_3_bed_0218.png",
+    ],
+    "auto_next": "S18_DUO_WAKEUP_0218",
+    "auto_next_after": True,
+    "auto_next_delay_ms": 350,
+},
+
+# 2) Uyanma sahnesi (seçenek: sadece koridora çık)
+"S18_DUO_WAKEUP_0218": {
+    "text": (
+        "Gözlerin zorla açılıyor.|||"
+        "Oda tanıdık… ama fazla sakin.|||"
+        "Karşında biri var.||"
+        "Ortanca halin.|||"
+        "Yüzü solgun.||"
+        "Gözleri uykusuz.|||"
+        "ORTANCA: \"Çabuk. Oyna.\"|||"
+        "Sen: \"Ne oldu?\"|||"
+        "ORTANCA: \"Sonra.||"
+        "Koridora çık.||"
+        "Hemen.\""
+    ),
+    "images": [
+        "images/end_ending_1.png",
+        "images/s18_wakeup_2_middle_close.png",
+        "images/s18_wakeup_3_reach_door.png",
+    ],
+    "choices": {
+        "1": ("Koridora çık", "S18_DUO_SEE_RIFT", []),
+    },
+},
+
+# 3) Yarığı görme sahnesi (ENDING)
+"S18_DUO_SEE_RIFT": {
+    "text": (
+        "Kapıyı açıyorsun.|||"
+        "Koridora adım atar atmaz…|||"
+        "hava yırtılıyor.|||"
+        "Sessizlik kesiliyor.|||"
+        "Duvarın ortasında, kocaman bir yarık.||"
+        "Zamanın kendisi… açılmış gibi.|||"
+        "İçinde dönen şey ışık değil.||"
+        "Anılar.||"
+        "Saniyeler.||"
+        "Aynı anın farklı ihtimalleri.|||"
+        "Yarığın kenarları titriyor.|||"
+        "Ortanca halin yanında nefesini tutuyor.|||"
+        "ORTANCA: \"Gördün mü?\"|||"
+        "\"İşte… bunu dışarı taşıdık.\"|||"
+        "Telefonun titriyor.|||"
         "Gönderen: Bilinmiyor.|||"
         "Mesaj: \"İkiniz çıktınız…||"
-        "Ama yarık da çıktı.\""
+        "Ama yarık da çıktı.\"|||"
+        "Ve bu sefer… yarık saklanmıyor."
     ),
-    "ending_id": "END_DUO_ESCAPE_TWO_LEAVE",
+    "images": [
+        None,
+        "images/s18_rift_2_giant_time_rift.png",
+        None,
+    ],
+    "ending_id": "END_DUO_RIFT_OUTSIDE",
 },
 
 "END_DUO_STAY_SOLO_SACRIFICE": {
@@ -985,7 +1076,7 @@ STORY_TR = {
 },
     "S16_CAFETERIA_HIDE": {
         "text": (
-            "Tezgâhın altına giriyorsun.|| Dizlerin taş zemine gömülüyor.||"
+            "##Tezgâhın altına giriyorsun.|| Dizlerin taş zemine gömülüyor.||"
             "Kapı açılıyor.|||"
             "Hademe: 'Nerdesin... orada olduğunu biliyorum.'|||"
             "Ayakkabısının sesi... duruyor. Tam önünde."
@@ -1001,7 +1092,7 @@ STORY_TR = {
 
 "S15_HIDE_SILENT_1": {
     "text": (
-        "Nefesini kesiyorsun. Göğsün yanıyor.||"
+        "##Nefesini kesiyorsun. Göğsün yanıyor.||"
         "Hademe kıpırdamıyor. Sanki dinlemiyor... sanki zaten biliyor.||"
         "Fısıltı gibi: 'Bu kadar sessizlik... hep aynı.'"
     ),
@@ -1029,7 +1120,7 @@ STORY_TR = {
 
 "S15_HIDE_SILENT_2": {
     "text": (
-        "Parmakların istemsiz titriyor ama durduruyorsun.||"
+        "##Parmakların istemsiz titriyor ama durduruyorsun.||"
         "Ayakkabı sesi bir adım sağa kayıyor... sonra geri geliyor.||"
         "Hademe: 'Beni oyalama. Zaman bunu sevmez.'"
     ),
@@ -1043,7 +1134,7 @@ STORY_TR = {
 
 "S15_HIDE_SILENT_2_DUO": {
     "text": (
-        "Parmakların istemsiz titriyor ama durduruyorsun.||"
+        "##Parmakların istemsiz titriyor ama durduruyorsun.||"
         "Ayakkabı sesi bir adım sağa kayıyor... sonra geri geliyor.||"
         "Hademe: 'Beni oyalamayın. Zaman bunu sevmez.'"
     ),
@@ -1057,27 +1148,27 @@ STORY_TR = {
 
 "S15_HIDE_FORCED": {
     "text": (
-        "Sessizliğin içine batıyorsun. Bu artık saklanmak değil.||"
+        "##Sessizliğin içine batıyorsun. Bu artık saklanmak değil.||"
         "Hademe tam önünde duruyor. Eğilmiyor.||"
         "Sadece başını yana eğiyor: .'|||"
         "Saklanarak buradan çıkamayacağını anlıyorsun."
     ),
     "images": [None, "images/s15_hide_forced.png", None],
     "choices": {
-        "1": ("Karşısına çık   ", "S16_HADEME_SENI_GORDU", ["F_NOISE"]),
+        "1": ("Karşısına çık  ", "S16_HADEME_SENI_GORDU", ["F_NOISE"]),
         "2": ("Dikkati başka yöne çek  (sesle)", "S15_HIDE_DISTRACT", ["F_NOISE"]),
         "3": ("Etrafı aramaya başla", "S16_CAFETERIA_CHESS_SETUP", []),
     },
 },
 
 "S15_HIDE_FORCED_DUO": {
+    "images": [None, "images/s15_hide_forced_duo.png", None],
     "text": (
-        "Sessizliğin içine batıyorsun. Bu artık saklanmak değil.||"
+        "##Sessizliğin içine batıyorsun. Bu artık saklanmak değil.||"
         "Hademe tam önünde duruyor. Eğilmiyor.||"
         "Sadece başını yana eğiyor: .'|||"
         "Saklanarak buradan çıkamayacağını anlıyorsun."
     ),
-    "images": [None, "images/s15_hide_forced_duo.png", None],
     "choices": {
         "1": ("Karşısına çık   ", "S16_HADEME_SENI_DUO", ["F_NOISE"]),
         "2": ("dikkati başka yöne çek  (sesle)", "S15_HIDE_DISTRACT_DUO", ["F_NOISE"]),
@@ -1087,19 +1178,19 @@ STORY_TR = {
 
 "S15_HIDE_DISTRACT": {
     "text": (
-        "Etrafta bulduğun metal bi şişeyi fırlatttın... küçük ama yeterli.||"
-        "Hademe başını aniden çeviriyor.||"
+        "##Etrafta bulduğun metal bi şişeyi fırlatttın... küçük ama yeterli.||"
+        "##Hademe başını aniden çeviriyor.||"
         "'Güzel... sonunda bir kaçmak için bi fırsat.|||'"
         "Tam zamanı bi anda fırlıyosun.||"
         "Ama hademe bunu farkediyiyo.'|||"
         "Olabildiğinde hızlı kafeteryanın kapısından kaçmaya çalışıyosun.||"
-        "Ama hademe bunu düşünmüş ve kapıyı kitlemiş.||"
+        "##Ama hademe bunu düşünmüş ve kapıyı kitlemiş.||"
         "Sen daha ne olduğnun bile anlamadan arkanı döndüğün anda seni yakalıyo.||"
     ),
     "images": [
-        "images/s15_distract_1_throw.png",
-        "images/s15_distract_2_locked_door.png",
-        "images/s15_distract_3_caught.png",
+        "images/s15_distract_duo_1_throw.png",
+        "images/s15_distract_duo_2_locked_door.png",
+        "images/s15_distract_duo_3_caught.png",
     ],
 
     "auto_next": "S15_CAFETERIA_STORAGE_LOCK",
@@ -1109,13 +1200,13 @@ STORY_TR = {
 
 "S15_HIDE_DISTRACT_DUO": {
     "text": (
-        "Etrafta bulduğun metal bi şişeyi fırlatttın... küçük ama yeterli.||"
-        "Hademe başını aniden çeviriyor.||"
+        "##Etrafta bulduğun metal bi şişeyi fırlatttın... küçük ama yeterli.||"
+        "##Hademe başını aniden çeviriyor.||"
         "'Güzel... sonunda bir kaçmak için bi fırsat.|||'"
         "Tam zamanı bi anda fırlıyosun.||"
         "Ama hademe bunu farkediyiyo.'|||"
         "Olabildiğinde hızlı kafeteryanın kapısından kaçmaya çalışıyosun.||"
-        "Ama hademe bunu düşünmüş ve kapıyı kitlemiş.||"
+        "##Ama hademe bunu düşünmüş ve kapıyı kitlemiş.||"
         "Sen daha ne olduğnun bile anlamadan arkanı döndüğün anda seni yakalıyo.||"
     ),
     "images": [
@@ -1732,7 +1823,7 @@ STORY_TR = {
     },
 
     "text": (
-         "Kapının içinde… dönüp duran bir boşluk var.||"
+         "##Kapının içinde… dönüp duran bir boşluk var.||"
         "Işık değil□— sanki zamanın kendisi kıvrılıyor.||"
         "Bir ZAMAN PORTALI.|||"
         "Hademe arkanıdan bağırıyor:□||"
@@ -1839,8 +1930,11 @@ STORY_TR = {
     "auto_delay_ms": 0,
     "auto_next_delay_ms": 0,
 },
-    "END_SOLO_ESCAPE_ASK": {
-        "text": (
+"END_SOLO_ESCAPE_ASK": {
+    "layout": "single",
+    "image": "images/end_solo_escape_ask.png",
+
+  "text": (
             "Yutkunuyorsun.||"
             "\"Bunu neden yapıyorsun?\"|||"
             "\"Bu kapı ne?\"|||"
@@ -1896,25 +1990,62 @@ STORY_TR = {
         },
     },
 
-    "END_SOLO_STAY_PROTECT_TIME": {
-        "text": (
-            "Hademe elini uzatıyor.||"
-            "Bu fedakarlığı yapmak zorundayız.||"
-            "Portal arkanda dönmeye devam ediyor.||"
-            "Ama sesi artık daha kısık.|||"
-            "Kapıyı kapatıp kilitliyorsun.|||"
-            "Sanırım haklısın.||"
-            "Bu fedakarlığı yapmalıyım.|||"
-            "İnsanlığı kurtarmak için||"
-            "Ve orda kalıyorsun.|||"
-            "Yıllar boyunca.\\\"|||"
-            "Hayatın boşa geçiyor.\\\"|||"
-            "Ama en azından biliyorsun.\\\"|||"
-            "Zaman artık güvende.\\\"|||"
-        ),
-        "ending_id": "END_SOLO_STAY_PROTECT_TIME",
+"END_SOLO_STAY_PROTECT_TIME_A": {
+    "layout": "single",
+    "image": "images/end_solo_stay_a_hand_reach.png",
+    "text": (
+        "##Hademe elini uzatıyor.||"
+        "Portal arkanda dönmeye devam ediyor… ama uğultusu kısılıyor.|||"
+        "Kapıyı kapatıyorsun.|||"
+        "Ve kilitliyorsun."
+    ),
+    "auto_next": "END_SOLO_STAY_PROTECT_TIME_B",
+    "auto_next_after": True,
+    "auto_next_delay_ms": 0,
+},
+
+"END_SOLO_STAY_PROTECT_TIME_B": {
+    "text": (
+        "##İnsanlık için bunu yapmalıyım.||"
+        "Başka bir yol yok."
+    ),
+    "images": [None, "images/scene_fire_exit_door.png", None],
+    "auto_next": "END_SOLO_STAY_PROTECT_TIME_ENDING",
+    "auto_next_after": True,
+    "auto_next_delay_ms": 200,
+},
+
+"END_SOLO_STAY_PROTECT_TIME_ENDING": {
+    "layout": "single",
+    "image": "images/end_solo_stay_year_4.png",  # fallback
+    "text": "##",
+
+    "ending": True,
+    "ending_id": "END_SOLO_STAY_PROTECT_TIME",
+
+    "ending_sequence_cfg": {
+        "images": [
+            "images/end_solo_stay_year_1.png",
+            "images/end_solo_stay_year_2.png",
+            "images/end_solo_stay_year_3.png",
+            "images/end_solo_stay_year_4.png",
+        ],
+        "holds_ms": [4000, 6000, 4000, 4000],
+
+        "instant_switch": False,   # fade açık
+        "fade_in_ms": 5000,        # 5sn açılış
+        "fade_out_ms": 4000,       # 4sn kapanış
+        "fade_steps": 64,
+
+        "cover": True,             # tam ekran (crop’lu)
+        "next_scene": "LOBBY",      # sequence + final yazılar bitince lobiye dön
     },
 
+    "final_screen_line": "Zaman artık güvende.",
+    "ending_title": "Fedakârlık",
+    "final_type_ms": 55,
+    "title_pop_steps": 10,
+},
     "END_SOLO_LEAVE_FREE": {
         "text": (
             "Geri çekilmiyorsun.||"
