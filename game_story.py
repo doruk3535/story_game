@@ -613,7 +613,7 @@ STORY_TR = {
     "image": "images/s16_yangin_tupu_duo.png",
 
     "text": (
-        "Duvara asılı kırmızı bir silindir görüyorsun.||"
+        "##Duvara asılı kırmızı bir silindir görüyorsun.||"
         "Yangın tüpü.|||"
         "Elin tereddüt etmiyor.||"
         "Tüpü yerinden koparıyorsun.|||"
@@ -638,7 +638,7 @@ STORY_TR = {
     ),
 
     # burada artık “hademe seni gördü” sahnesine geçiyoruz
-    "auto_next": "S16_HADEME_SENI_GORDU_DUO",
+    "auto_next": "S16_HADEME_SENI_GORDU",
     "auto_next_after": True,
 
     # istersen minik gerilim gecikmesi:
@@ -650,7 +650,7 @@ STORY_TR = {
     "image": "images/s16_hademe_seni_gordu_duo.png",
 
     "text": (
-        "Dönüyorsun—|||"
+        "##Dönüyorsun—|||"
         "Ve bileğin bir anda kavranıyor.|||"
         "Güçlü.||"
         "Soğuk.||"
@@ -715,7 +715,7 @@ STORY_TR = {
     "image": "images/s16_hademe_seni_gordu_duo.png",
 
     "text": (
-        "Dönüyorsun—|||"
+        "##Dönüyorsun—|||"
         "Ve bileğin bir anda kavranıyor.|||"
         "Güçlü.||"
         "Soğuk.||"
@@ -1219,6 +1219,32 @@ STORY_TR = {
     "auto_next_after": True,       # ✅ metin bittikten sonra
     "auto_next_delay_ms": 500,      # ✅ bitince 500ms bekle
 },
+"S15_CAFETERIA_STORAGE": {
+    "layout": "single",
+    "image": "images/s15_cafeteria_storage_duo.png",  # tek büyük görsel
+
+    "text": (
+        "##Depoya atılıyorsun. orda kendini görüyorsun.||"
+        "Kilit sesi… kapıyı üstüne kapatıyor.|||"
+        "Kendinle başbaşa konuşmaya başlıyorsun.|||"
+        "ORTANCA: \"o hademede sanada garip gelen bişey yokmu.\"|||"
+        "ORTANCA: \"Tanıdık bişey.\"|||"
+        "Sen: \"Dur tahmin ediyim ?\"||"
+        "ORTANCA: \"evet... doğru tahmin ettin .\"||"
+        "ORTANCA: \"hepimiz aslında aynı kişiyiz farklı zamanlardan.\"||"
+        "ORTANCA: \"seni uyarmaya gelmiştim \"|||"
+        "Sen: \"Peki bu nasıl oluyor neden 3 farklı zaman birbiri içinde\"||"
+        "ORTANCA: \"O kadarını bilmiyorum .\"|||"
+        "ORTANCA: \"tek bildiğim seni burda tutmak istiyo .\"|||"
+        "ORTANCA: \"Ve benim seni burda çıkarmam gerek .\"|||"
+        "Sen: \"Ama bunu nasıl yapıcaz.\"||"
+    ),
+    "choices": {
+        "1": ("Havalandırmayı kullan(tek başına kurtul odadan)", "S15_RAY_VENT_ESCAPE_SOLO", []),
+        "2": ("Hademeye seslen", "S17_ESCAPE_TOGETHER_OVERCOME_JANITOR", []),
+        "3": ("Sessiz kal", "S15_STORAGE_LISTEN", []),
+    },
+},
 "S15_CAFETERIA_STORAGE_DUO": {
     "layout": "single",
     "image": "images/s15_cafeteria_storage_duo.png",  # tek büyük görsel
@@ -1705,13 +1731,13 @@ STORY_TR = {
 
         "choices": {
             "1": ("Yangın çıkışına doğru git", "END_SOLO_ESCAPE_A", []),
-            "2": ("Ses gelen deponun kapısına doğru yaklaş", "S15_CAFETERIA_STORAGE_LOCK", []),
+            "2": ("Ses gelen deponun kapısına doğru yaklaş", "S16_RAY_TO_S15_CAPTURE", []),
         },
     },
 
     "S16_RAY_TO_S15_CAPTURE": {
         "text": (
-            "Kapıya yaklaşıyorsun.||"
+            "##Kapıya yaklaşıyorsun.||"
             "Ses çok yakın….|||"
             "Elin, istemsizce anahtarı sıkıyor.||"
             "Metal avucunda sıkıca duruyor.|||"
@@ -1985,7 +2011,7 @@ STORY_TR = {
             "Zamanı korumak zorundayım."
         ),
         "choices": {
-            "1": ("Kal ve zamanı koru", "END_SOLO_STAY_PROTECT_TIME", []),
+            "1": ("Kal ve zamanı koru", "END_SOLO_STAY_PROTECT_TIME_A", []),
             "2": ("Ayrıl ve özgür ol", "END_SOLO_LEAVE_FREE", []),
         },
     },
@@ -2056,27 +2082,15 @@ STORY_TR = {
             "Özgür bi bilinmez bi sonu tercih ederim.|||"
             "Portalın içi dalgalanıyor.||"
             "\"Özgürlük,\" diyorsun.||"
-            "\"Buna ihtiyacım var.\"|||"
-            "Hademenin sesi çok kısık:|||"
-            "\"Özgürlük değil o…\"||"
-            "\"O bir son.\"|||"
-            "Geçiyorsun.|||"
-            "Gözlerin yanıyor.||"
-            "Kulakların uğulduyor.|||"
-            "Dünya… bir anlığına üst üste biniyor.|||"
-            "Ve sonra—|||"
-            "Sessizlik.|||"
-            "Yatağında uyanıyorsun.||"
-            "Herşey aynı.|||"
-            "Gine aynı oda .|||"
-            "Az önce yaşadıklarım bir rüyamıydı.|||"
-            "Doğrulup telefoan bakıyorsun:|||"
-            "Saat: 02:18|||"
-            "Sanki bişeyleri doğru yapmış gibisin:|||"
-            "\"Ama kim bilir bunu zaman göstericek .\""
+
         ),
-        "ending_id": "END_SOLO_LEAVE_FREE",
-    },
+       "auto_next": "END_SOLO_ESCAPE_PORTAL",
+    "auto_next_after": True,
+    "auto_delay_ms": 0,
+    "auto_next_delay_ms": 0,
+},
+
+
 
 
 

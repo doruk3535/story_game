@@ -1842,10 +1842,11 @@ speaker_img_label = None
 speaker_name_label = None
 speaker_photo_cache = {}
 
-# Main Menu logo-only overlay
-menu_logo_label = None
+# Main Menu menu-canvas overlay (bg + logo drawn on a full-screen Canvas)
+menu_canvas = None
+menu_bg_item = None
+menu_logo_item = None
 menu_logo_img = None
-
 # Flicker
 _flicker_cfg = None
 _flicker_running = False
@@ -2601,13 +2602,21 @@ def _calc_hero_size():
     HERO_H = max(520, min(int(sh * 0.62), 720))
 
 
-def set_canvas_triptych_mode():
+def set_canvas_triptych_mode(slots: int = 3):
+    """Triptych canvas sized to 1/2/3 slots."""
     try:
-        carousel_canvas.config(width=ORIG_CW, height=ORIG_CH)
+        s = max(1, min(3, int(slots)))
+    except Exception:
+        s = 3
+
+    w = (IMG_W * s) + (GAP * (s - 1))
+    h = IMG_H
+
+    try:
+        carousel_canvas.config(width=w, height=h, bg=BG_COLOR, highlightthickness=0, bd=0)
         carousel_canvas.place(relx=0.5, y=30, anchor="n")
     except Exception:
         pass
-
 
 def set_canvas_hero_mode(custom_w=None, custom_h=None):
     if HERO_W is None or HERO_H is None:
@@ -2617,21 +2626,14 @@ def set_canvas_hero_mode(custom_w=None, custom_h=None):
     h = int(custom_h) if custom_h else HERO_H
 
     try:
-        carousel_canvas.config(width=w, height=h)
+        carousel_canvas.config(width=w, height=h, bg=BG_COLOR, highlightthickness=0, bd=0)
         carousel_canvas.place(relx=0.5, y=HERO_Y, anchor="n")
+        carousel_canvas.lift()
         return w, h
     except Exception:
         return w, h
 
-
-# ----------------------------
-# Carousel helpers
-# ----------------------------
 def carousel_clear():
-    try:
-        stop_video()
-    except Exception:
-        pass
     global hero_item_id, hero_img_path
     carousel_canvas.delete("all")
     for k in ("L", "C", "R"):
@@ -2640,15 +2642,6 @@ def carousel_clear():
     tmp_refs.clear()
     hero_item_id = None
     hero_img_path = None
-    # clear overlays
-    global hero_overlay_items, hero_overlay_refs, _overlay_queue, _overlay_i, _overlay_step_points, _overlay_step_fired
-    hero_overlay_items = []
-    hero_overlay_refs = []
-    _overlay_queue = []
-    _overlay_i = 0
-    _overlay_step_points = []
-    _overlay_step_fired = set()
-
 
 def place_slot(slot_key, photo, x, y):
     if photo is None:
@@ -3125,8 +3118,8 @@ def pop_in_to_slot(slot_key, path, x, y, duration_ms=POP_MS, frames=POP_FRAMES, 
 
 
 # Button hover
-BORDER_OFF = "#2a3a6a"
-BORDER_ON = "#4f6cff"
+BORDER_OFF = "#0f1730"
+BORDER_ON = "#0f1730"
 
 
 def bind_border_hover(btn, border_frame):
@@ -3613,55 +3606,51 @@ def play_scene_segment_flow(img_list, seg_list):
         paths.append(None)
     p1, p2, p3 = paths[:3]
 
-    img_seq = [p1, p2, p3]
+    # only non-null images determine how many slots we need
+    img_order = [p for p in (p1, p2, p3) if (p is not None) and (str(p).strip() != "")]
+    slot_count = max(1, min(3, len(img_order)))
+
+    # resize canvas NOW so there is no extra empty panel
+    set_canvas_triptych_mode(slot_count)
+
+    # slot x positions inside the resized canvas
+    if slot_count == 1:
+        slot_keys = ["C"]
+        slot_xs = [int(carousel_canvas.cget("width")) // 2]
+    elif slot_count == 2:
+        slot_keys = ["L", "C"]
+        slot_xs = [IMG_W // 2, (IMG_W // 2) + IMG_W + GAP]
+    else:
+        slot_keys = ["L", "C", "R"]
+        slot_xs = [IMG_W // 2, (IMG_W // 2) + IMG_W + GAP, (IMG_W // 2) + (IMG_W + GAP) * 2]
+
     img_ptr = 0
 
     def pop_next_image(cb):
-        """Show next available image (L->C->R) ONLY when IMAGE_TOKEN ("##") is encountered."""
         nonlocal img_ptr
-        while img_ptr < len(img_seq) and not img_seq[img_ptr]:
-            img_ptr += 1
-        if img_ptr >= len(img_seq):
+        if img_ptr >= len(img_order):
             cb()
             return
-
-        path = img_seq[img_ptr]
-
-        # map pointer to slot
-        slot_map = {
-            0: ("L", SLOT_LX),
-            1: ("C", SLOT_CX),
-            2: ("R", SLOT_RX),
-        }
-        slot_key, slot_x = slot_map.get(img_ptr, ("R", SLOT_RX))
+        path = img_order[img_ptr]
+        idx = img_ptr
         img_ptr += 1
 
-        def _done():
-            root.after(POP_DELAY_23, cb)
+        slot_key = slot_keys[idx] if idx < len(slot_keys) else slot_keys[-1]
+        slot_x = slot_xs[idx] if idx < len(slot_xs) else slot_xs[-1]
 
-        pop_in_to_slot(slot_key, path, slot_x, SLOT_Y, on_done=_done)
-
-    pre_slot = None
-    pre_path = None
-
-    candidates = [("L", p1), ("C", p2), ("R", p3)]
-    non_null = [(k, v) for (k, v) in candidates if v]
-
-    if (p1 is None) and (len(non_null) == 1):
-        pre_slot, pre_path = non_null[0]
-        if pre_slot == "C":
-            p2 = None
-        elif pre_slot == "R":
-            p3 = None
+        pop_in_to_slot(slot_key, path, slot_x, SLOT_Y, on_done=lambda: root.after(POP_DELAY_23, cb))
 
     def finish_all():
+        an = scene.get("_auto_next_resolved") if scene else None
+        if an:
+            d = int(scene.get("_auto_next_delay", 0) or 0)
+            scene["_auto_next_resolved"] = None
+            scene["_auto_next_delay"] = 0
+            root.after(max(0, d), lambda sid=an: go_to(sid))
+            return
+
         if sfx_started_this_scene and not scene.get("keep_sfx_after_scene", False) and scene.get("end_sound") != "ambience":
             stop_sfx_loop()
-
-        # ✅ ENDING cinematic
-        if scene and scene.get("ending") is True:
-            show_ending_cinematic(scene)
-            return
 
         show_buttons_for_scene()
 
@@ -3673,7 +3662,6 @@ def play_scene_segment_flow(img_list, seg_list):
 
         sfx_seg = scene.get("sfx_on_segment")
         if isinstance(sfx_seg, int) and sfx_seg >= 1 and seg_i == (sfx_seg - 1):
-            print("[AUDIO] sfx_on_segment TRIGGER:", sfx_seg, "scene=", current)
             start_sfx_this_scene()
 
         if seg_i >= len(segments):
@@ -3690,19 +3678,14 @@ def play_scene_segment_flow(img_list, seg_list):
             pop_next_image(lambda: root.after(HOOK_MS, write_next_segment))
             return
         if text_part == OVERLAY_TOKEN:
-            # triptych modda overlay yok say
             root.after(HOOK_MS, write_next_segment)
             return
 
-        def after_this_segment():
-            root.after(HOOK_MS, write_next_segment)
-
-        start_typewriter(text_part, on_done=after_this_segment, clear_first=(seg_i==1))
+        start_typewriter(text_part, on_done=lambda: root.after(HOOK_MS, write_next_segment), clear_first=(seg_i == 1))
 
     carousel_clear()
-
-    # ✅ Images appear ONLY when "##" (IMAGE_TOKEN) is encountered in text
     root.after(POP_DELAY_12, write_next_segment)
+
 
 
 def _is_single_focus_layout(scn: dict) -> bool:
@@ -3715,7 +3698,29 @@ def _is_single_focus_layout(scn: dict) -> bool:
 
 
 def load_scene():
-    # Always start a scene by clearing any previous scene visuals (hero/triptych/overlays/video).
+    # Background safety (every scene)
+    try:
+        # ensure background label is visible and behind everything
+        bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+        bg_label.lower()
+    except Exception:
+        pass
+
+    # make sure menu canvas never leaks into gameplay
+    try:
+        if 'menu_canvas' in globals() and menu_canvas:
+            menu_canvas.place_forget()
+    except Exception:
+        pass
+
+    # extra: if vignette exists and could become opaque, keep it disabled/hidden
+    try:
+        if 'vignette_label' in globals() and vignette_label:
+            vignette_label.place_forget()
+    except Exception:
+        pass
+
+    # Always start a scene by clearing previous visuals
     try:
         carousel_clear()
     except Exception:
@@ -3723,7 +3728,9 @@ def load_scene():
             stop_video()
         except Exception:
             pass
+
     global scene, _flicker_cfg, sfx_started_this_scene, _dizzy_cfg
+
     stop_clicks()
     cancel_auto_next()
     stop_flicker()
@@ -3868,8 +3875,7 @@ def load_scene():
             carousel_clear()
     except Exception:
         pass
-
-    set_canvas_triptych_mode()
+    # (canvas size set inside play_scene_segment_flow based on non-null images)
     img_list = get_scene_images_list(scene)
     seg_list = split_text_into_segments(scene.get("text", ""))
     play_scene_segment_flow(img_list, seg_list)
@@ -4097,50 +4103,168 @@ def reset_events():
     STATE.items.clear()
 
 
-def _hide_menu_logo_only():
-    global menu_logo_label, menu_logo_img
+def _init_menu_canvas_if_needed():
+    """Create menu_canvas AFTER root/bg_img exist. Safe to call multiple times."""
+    global menu_canvas, menu_bg_item, menu_logo_item, menu_logo_img
+
+    if menu_canvas is not None:
+        return
+    if root is None:
+        return
+
     try:
-        if menu_logo_label:
-            menu_logo_label.place_forget()
+        sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+        menu_canvas = tk.Canvas(root, width=sw, height=sh, bg=BG_COLOR, highlightthickness=0, bd=0)
+
+        # draw background
+        if bg_img is not None:
+            menu_bg_item = menu_canvas.create_image(0, 0, image=bg_img, anchor="nw")
+            menu_canvas.bg_img = bg_img  # keep ref
+
+        # draw logo (same position as old rely=0.30)
+        try:
+            menu_logo_img = load_photo_fit("images/logo.png", 1500, 540, _img_cache)
+        except Exception:
+            menu_logo_img = None
+
+        if menu_logo_img is not None:
+            menu_logo_item = menu_canvas.create_image(sw // 2, int(sh * 0.30), image=menu_logo_img, anchor="center")
+            menu_canvas.logo_img = menu_logo_img
+        else:
+            menu_canvas.create_text(sw // 2, int(sh * 0.30), text="02:17", fill="white",
+                                    font=("Segoe UI Semibold", 34, "bold"))
+
+        # start hidden
+        try:
+            menu_canvas.place_forget()
+        except Exception:
+            pass
+
+    except Exception as e:
+        print("[MENU_CANVAS] init error:", e)
+        menu_canvas = None
+def _hide_menu_logo_only():
+    global menu_canvas
+    try:
+        if menu_canvas:
+            menu_canvas.place_forget()
+            try:
+                menu_canvas.lower()
+            except Exception:
+                pass
     except Exception:
         pass
 
-
 def _show_menu_logo_only():
+    """Menu/dil ekranında:
+    - Oyun canvas'ı gizle
+    - menu_canvas göster (bg+logo)
+    - card ve overlay UI üstte kalsın
     """
-    Ana menü / dil seçimi ekranında: sadece logo görünsün,
-    oyun canvas (mavi pencere) görünmesin.
-    """
-    global menu_logo_label, menu_logo_img
+    global menu_canvas
+    _ensure_bg_stack()
 
-    # canvas'ı tamamen gizle
     try:
         carousel_canvas.place_forget()
     except Exception:
         pass
 
-    if menu_logo_label is None:
-        menu_logo_label = tk.Label(root, bg=BG_COLOR, bd=0)
+    _init_menu_canvas_if_needed()
 
     try:
-        logo = load_photo_fit(get_logo_rel_path(), 1500, 540, _img_cache)
+        if menu_canvas:
+            menu_canvas.place(x=0, y=0, relwidth=1, relheight=1)
+            # menu_canvas should sit above bg but below card
+            try:
+                menu_canvas.lower(card)
+            except Exception:
+                pass
     except Exception:
-        logo = None
+        pass
 
-    menu_logo_img = logo
-    if logo:
-        menu_logo_label.config(image=logo, text="")
-        menu_logo_label.image = logo
-    else:
-        menu_logo_label.config(text="02:17", fg="white", font=("Segoe UI Semibold", 34, "bold"))
+    # Ensure UI is on top
+    try:
+        card.lift()
+    except Exception:
+        pass
+    try:
+        audio_ui.lift()
+    except Exception:
+        pass
+    try:
+        inv_ui.lift()
+    except Exception:
+        pass
 
-    menu_logo_label.place(relx=0.5, rely=0.30, anchor="center")
+
+def _ensure_bg_stack():
+    """Make sure bg_label is visible and not covered by an opaque vignette."""
+    try:
+        bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+    except Exception:
+        return
+
+    # Keep background behind everything
+    try:
+        bg_label.lower()
+    except Exception:
+        pass
+
+    # Vignette handling:
+    # If PIL isn't available, alpha may not work -> vignette can become opaque and hide bg.
+    try:
+        if 'vignette_label' in globals() and vignette_label is not None:
+            if not PIL_OK:
+                # safest: put vignette UNDER bg so it can't hide it
+                try:
+                    vignette_label.lower(bg_label)
+                except Exception:
+                    pass
+            else:
+                # normal: keep vignette above bg, below UI
+                try:
+                    vignette_label.lift(bg_label)
+                except Exception:
+                    pass
+    except Exception:
+        pass
 
 
 def _enter_game_view():
-    _hide_menu_logo_only()
+    # Leave menu -> enter game: hard-hide menu canvas and show background
+    try:
+        _hide_menu_logo_only()
+    except Exception:
+        pass
+    try:
+        if 'menu_canvas' in globals() and menu_canvas:
+            menu_canvas.place_forget()
+    except Exception:
+        pass
+
+    try:
+        bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+        bg_label.lower()
+    except Exception:
+        pass
+
     try:
         carousel_canvas.place(relx=0.5, y=30, anchor="n")
+        carousel_canvas.lift()
+    except Exception:
+        pass
+
+    # UI layers on top
+    try:
+        card.lift()
+    except Exception:
+        pass
+    try:
+        audio_ui.lift()
+    except Exception:
+        pass
+    try:
+        inv_ui.lift()
     except Exception:
         pass
 
@@ -4460,6 +4584,7 @@ def show_menu():
 
 # ============================================================
 def show_main_menu():
+    _ensure_bg_stack()
     stop_clicks()
     stop_sfx_loop()
     stop_flicker()
@@ -4469,6 +4594,8 @@ def show_main_menu():
 
     bg_label.place(x=0, y=0, relwidth=1, relheight=1)
     bg_label.lower()
+
+    _init_menu_canvas_if_needed()
 
     card.pack(side="bottom", padx=30, pady=(0, 90), fill="x")  # lift card up; tweak 90 later
     story_label.config(text="02:17\n\nAna Menü")
@@ -4505,6 +4632,7 @@ def show_main_menu():
 
 
 def show_language_screen():
+    _ensure_bg_stack()
     stop_clicks()
     stop_sfx_loop()
     stop_flicker()
@@ -4765,30 +4893,18 @@ bg_label = tk.Label(root, image=bg_img, bg=BG_COLOR)
 bg_label.image = bg_img
 bg_label.place(x=0, y=0, relwidth=1, relheight=1)  # show background
 
-# ✅ Atmosphere overlay (vignette) - sits above BG but below everything else
-vignette_img = _build_vignette_image(root.winfo_screenwidth(), root.winfo_screenheight())
-vignette_label = tk.Label(root, image=vignette_img, bd=0, bg=BG_COLOR)
-vignette_label.image = vignette_img
-vignette_label.place(x=0, y=0, relwidth=1, relheight=1)
-# Keep it below the interactive UI
-try:
-    vignette_label.lift(bg_label)
-except Exception:
-    pass
-
-# Update vignette on resize (debounced)
-try:
-    root.bind("<Configure>", _schedule_vignette_refresh)
-except Exception:
-    pass
-
+# ✅ Atmosphere overlay (vignette) - DISABLED for background stability
+vignette_img = None
+vignette_label = None
 
 # Triptych canvas (default)
+
 carousel_canvas = tk.Canvas(root, width=CAROUSEL_W, height=CAROUSEL_H, bg=BG_COLOR, highlightthickness=0, bd=0)
 carousel_canvas.place(relx=0.5, y=30, anchor="n")
 
 # Card
-card = tk.Frame(root, bg=BG_COLOR, bd=2, relief="groove")
+NAVY_BORDER = "#1a2440"
+card = tk.Frame(root, bg=BG_COLOR, bd=0, highlightthickness=2, highlightbackground=NAVY_BORDER, highlightcolor=NAVY_BORDER)
 
 
 # --- FIX: keep bottom card height constant (no auto-grow) ---
@@ -4834,17 +4950,24 @@ for _i in range(4):
     cf.pack(side="left", padx=44)
     choice_containers.append(cf)
 
-    border = tk.Frame(cf, bg=BORDER_OFF)
-    border.pack(pady=(0, 10))
+    # Outer black border (always)
+    outer = tk.Frame(cf, bg="#0f1730")
+    outer.pack(pady=(0, 10))
+
+    # Inner hover border (changes color on hover)
+    border = tk.Frame(outer, bg=BORDER_OFF)
+    border.pack(padx=4, pady=4)
+
     choice_borders.append(border)
 
     btn = tk.Button(border, text="", width=24, height=1, bd=0, relief="flat",
                     bg="#1a2440", fg="white", activebackground="#24335c",
-                    activeforeground="white", font=("Segoe UI Semibold", 18))
+                    activeforeground="white", font=("Segoe UI Semibold", 16))
     btn.pack(padx=2, pady=2)
     choice_buttons.append(btn)
 
     bind_border_hover(btn, border)
+
 
 for b in choice_buttons:
     b.config(text="", state="disabled")
