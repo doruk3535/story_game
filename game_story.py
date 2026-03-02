@@ -16,8 +16,8 @@ STORY_TR = {
         "text": (
             "##Saat 02:17.||"
             "##Telefon ekranın açık ama bildirim yok.||"
-            "##Koridordan düzenli ayak sesleri geliyor.||"
-            "Fazla düzenli."
+            "##Koridordan ayak sesleri geliyor.[[BLINK]]||"
+            
         ),
         "images": [
             "images/s01_1_phone.png",
@@ -36,8 +36,8 @@ STORY_TR = {
         "text": (
             "##Kapının önündesin.||"
             "##Ayak sesleri kapının tam önünde duruyor.||"
-            "##Biri seni dinliyor.||"
-            "Nefesini bile duyuyorsun."
+            "##Sanki biri seni dinliyor.||"
+            "Nefesini duyuyorsun."
         ),
         "images": [
             "images/s02_door.png",
@@ -90,9 +90,9 @@ STORY_TR = {
 
     "S04_CORRIDOR": {
         "text": (
-            "##Koridor sessiz.||"
-            "Işıklar hafifçe titriyor.||"
-            "ilerde biri var ."
+            "##Koridor sessiz||"
+            "Işıklar hafifçe titriyor||"
+            "İlerde biri var."
         ),
         "images": [None, "images/s04_corridor.png", None],
         "flicker": {"index": 2, "slot": "C", "intensity": "strong", "until": "scene_end"},
@@ -114,7 +114,7 @@ STORY_TR = {
         "choices": {
             "1": ("Kamera odasına yönel", "S07_CAMERA_DOOR", []),
             "2": ("ilerdeki silüete yönel", "S08_JANITOR", []),
-            "3": ("Odaya geri dön", "S09_LOOP_ROOM_2", []),
+            "3": ("Odaya geri dön", "S09_LOOP_ROOM_1", []),
         },
     },
 
@@ -800,7 +800,7 @@ STORY_TR = {
 
         "choices": {
             "1": ("h7 ", "S16_kilit_açılmıyor_DUO_A", []),
-            "2": ("g6", "S16_şifre_doğru_duo", []),
+            "2": ("g6", "S16_şifre_doğru_DUO", []),
             "3": ("f7", "S16_kilit_açılmıyor_DUO_C", []),
         },
     },
@@ -902,9 +902,9 @@ STORY_TR = {
 
     "S07_CAMERA_DOOR": {
         "text": (
-            "##Kamera odasının kapısındasın.||"
-            "İçeriden hafif bir uğultu geliyor.||"
-            "Kapı açık ."
+            "##Kamera odasının kapısındasın||"
+            "İçeriden hafif bir uğultu geliyor||"
+            "Kapı açık."
         ),
         "images": [None, "images/s07_camera_door.png", None],
         "choices": {
@@ -1170,7 +1170,7 @@ STORY_TR = {
         "Saklanarak buradan çıkamayacağını anlıyorsun."
     ),
     "choices": {
-        "1": ("Karşısına çık   ", "S16_HADEME_SENI_DUO", ["F_NOISE"]),
+        "1": ("Karşısına çık   ", "S16_HADEME_SENI_GORDU", ["F_NOISE"]),
         "2": ("dikkati başka yöne çek  (sesle)", "S15_HIDE_DISTRACT_DUO", ["F_NOISE"]),
         "3": ("Etrafı aramaya başla", "S16_CAFETERIA_CHESS_SETUP_DUO", []),
     },
@@ -1297,7 +1297,7 @@ STORY_TR = {
         ),
         "choices": {
             "1": ("Tek başına yangın çıkışına git", "END_SOLO_ESCAPE_A", []),
-            "2": ("Kapıyı aç", "S15_CAFETERIA_STORAGE_LOCK2", []),
+            "2": ("Kapıyı aç", "S15_CAFETERIA_STORAGE", []),
            
         },
     },
@@ -1348,10 +1348,10 @@ STORY_TR = {
             "Hademe:Şuan geçmiş ve gelecek senin burda kalmana bağlı"
             "Hademe:Sen bi anomalisin zamanı bir arada tutuyorsun "
             "Sen:peki neden ben "
-            "Hademe:Çünkü hepsi benim hatam "
+            "Hademe:Çünkü hepsi benim hatam||| "
             "Hademe:Ve sen bensin "
             "Hademe:Burdan çıkmıyorsun "
-            "Deyip kapıyı üzerine kapıyı kapatmak için arkasını dönüyor çıkmaya hazırlanıyor "
+            "Deyip kapıyı üzerine kapıyı kapatmak için arkasını dönüyor çıkmaya hazırlanıyor||| "
         ),
         "choices": {
             "1": ("İtiraz et", "S18_ARGUE_WITH_JANITOR", []),
@@ -1415,89 +1415,143 @@ STORY_TR = {
         ),
         "choices": {
             "1": ("Genç halini tut ve portala atla", "END_ATTACK_PORTAL_JUMP", []),
-            "2": ("Silahı indir ve teslim ol", "END_ATTACK_SURRENDER", []),
-            "3": ("Hademeyi durdurmaya çalış", "END_ATTACK_DISARM_ATTEMPT", []),
+            "2": ("Tek başına git", "END_ATTACK_SURRENDER", []),
+            "3": ("Hademeyi ikna et", "END_ATTACK_DISARM_ATTEMPT", []),
         },
     },
+# 1) PORTALA SIÇRAMA (3 görsel) -> auto_next: WHITE_ROOM
+"END_ATTACK_PORTAL_JUMP": {
+    "text": (
+        "##Genç halinin bileğini yakalıyorsun.|||"
+        "Sen: \"ŞİMDİ!\"|||"
+        "Bir an bile tereddüt etmiyor.|||"
+        "##İkiniz birden portala atlamak için hamle ediyorsunuz.|||"
+        "##Hademe, \"Bunun olmasına izin veremem,\" deyip arkanızdan atlıyor.|||"
+        
+    ),
+    "images": [
+        "images/end_duo_two_leave_1_dash_into_portal.png",
+        "images/end_duo_two_leave_2_time_layers_flash.png",
+        "images/end_attack_portal_jump_3_follow.png",
+    ],
+    "auto_next": "END_ATTACK_WHITE_ROOM",
+    "auto_next_after": True,
+    "auto_next_delay_ms": 0,
+    "ending_id": "END_ATTACK_PORTAL_JUMP",
+},
 
-    "END_ATTACK_PORTAL_JUMP": {
-        "text": (
-            "Genç halinin bileğini yakalıyorsun.|||"
-            "Sen: \"ŞİMDİ!\"|||"
-            "O seni anlıyor.||"
-            "Bir an bile tereddüt etmiyor.|||"
-            "İkiniz birden portala atlamak içiçn hamle ediyorsunuz.|||"
-            "Hademe bunun olmasına izin veremem deyip ateş ediyor.|||"
-            "Elinle karnını tutuyorsun"
-            "Heryer kan olmuş"
-            "Aynı anda hepiniz karnınızı tutuyorsunuz"
-            "Sen ölünce gelecekti varyantlarında ölüyo"
-            "Neden yaptın diye soruyorsun son nefesinsle"
-            "oda son nefesiyle cevap veriyor"
-            "Mecburdum..."
-        ),
-        "ending_id": "END_ATTACK_PORTAL_JUMP",
-    },
+# 2) BEYAZ ODA (3 görsel) -> auto_next: NARRATOR_DOOR_SINGLE
+"END_ATTACK_WHITE_ROOM": {
+    "text": (
+        "##Burasıda neresei.|||"
+        "Ses yok. Yankı yok.||"
+        "Sadece beyaz.|||"
+        "##İleride bi kapın var :|||"
+        "##Yaklaşıp kapıyı çalışıyolar"
+        "tak tak "
+        "Bir saniye kapıya bakmalyım ."
+    ),
+    "images": [
+        "images/end_attack_white_room_1_arrive.png",
+        "images/end_attack_white_room_2_void.png",
+        "images/end_attack_white_room_3_door_far.png",
+    ],
+    "auto_next": "END_ATTACK_NARRATOR_DOOR_SINGLE",
+    "auto_next_after": True,
+    "auto_next_delay_ms": 0,
+},
 
-    "END_ATTACK_SURRENDER": {
-        "text": (
-            "Genç halin sana bakıyor.||"
-            "Gözleri ‘soru’ değil… ‘öfke’.|||"
-            "Sen bir adım öne çıkıyorsun.|||"
-            "Sen: \"Yapma.\"|||"
-            "Genç halin:Napıyorsun teslim olamazsın"
-            "Sen: biz bu değiliz biz katil değiliz"
-            "Genç halin: seni dinlemiyor ve silahına davranırken"
-            "Genç halin vururluyor"
-            "Ve karnını tutmaya başlıyor "
-            "Aynı anda yaşlı halinde karnını tutuyor"
-            "Genç halin olmadan yaşlı halin olamaz"
-            "Genç halininin suratında tatlı bi tebessüm"
-            "Sen:bunun olucağını biliyordun değilmi"
-            "Son nefesiyle özgür olmanı istedim "
-            "artık öözgürsün kendini ve geleceğini kurtar"
-            "gözlerini yumuyor"
-            "Onun ölümünün anlanlandırman gerek"
-            "herşeye rağmen portal giriyorusun "
-            "Ardına bakmadan "
-            "Portaldan geçtikten sonra"
-            "Gözün kakarırıyor"
-            "Ve yatağında uynaıyorsun"
-            "Yine aynı odadasın "
-            "Doğrulup telefonuna bakıyorsun "
-            "saat 02:18 "
-            "Ve bir bildirim var"
-            "Bugünden değil gelecekten"
-            "Ve şöyle diyor en yaptın bilmiyorum||"
-            "Ama doğru olanı yaptın"
-        ),
-        "ending_id": "END_ATTACK_SURRENDER",
+# 3) KAPI ÖNÜ / TEK BÜYÜK GÖRSEL (single) -> auto_next: NARRATOR_REVEAL_SINGLE
+"END_ATTACK_NARRATOR_DOOR_SINGLE": {
+    "layout": "single",
+    "image": "images/end_attack_door_single.png",
+    "text": (
+        "##Ah çocuklar"
+    ),
+    "auto_next": "END_ATTACK_NARRATOR_REVEAL_SINGLE",
+    "auto_next_after": True,
+    "auto_next_delay_ms": 5000,
+},
+
+# 4) ANLATICININ ODASI / TEK BÜYÜK GÖRSEL (single) -> (istersen buradan başka yere de auto_next bağlarız)
+"END_ATTACK_NARRATOR_REVEAL_SINGLE": {
+    "layout": "single",
+    "image": "images/end_attack_narrator_room_single.png",
+    "text": (
+        "Bende sizi bekliyordum"
+    ),
+    "ending_id": "END_ATTACK_NARRATOR_REVEAL_SINGLE",
+},
+
+# 1) END_ATTACK_SURRENDER -> 3 görsel -> auto_next: YATAK (tekli)
+"END_ATTACK_SURRENDER": {
+    "text": (
+        "Genç halin sana bakıyor.||"
+        "Sen: \"Git.\"|||"
+        "##\"Ben onu oyalarım.\"|||"
+        "##\"Vakit yok. Çabuk.\""
+    ),
+    "images": [
+        "images/end_attack_surrender_1_look.png",
+        "images/end_attack_surrender_2_push.png",
+        "images/end_attack_surrender_3_turn.png",
+    ],
+    "auto_next": "END_WAKE_BED_2016_SINGLE",
+    "auto_next_after": True,
+    "auto_next_delay_ms": 0,
+    "ending_id": "END_ATTACK_SURRENDER",
+},
+
+# 2) Yatakta uyanma (20:16) -> tek büyük görsel + TEK seçenek: "Koridora çık"
+"END_WAKE_BED_2016_SINGLE": {
+    "layout": "single",
+    "image": "images/end_wake_2016_bed.png",
+    "text": (
+        "##Gözlerini açıyorsun.|||"
+        "Yatak. Oda .|||"
+        "Başını çeviriyorsun…|||"
+        "##Saat: 02:16"
+    ),
+    "choices": {
+        "1": ("Koridora çık", "END_WAKE_CORRIDOR_3", []),
     },
+},
+
+# 3) (İKİNCİ SAHNE: Koridora çık) -> 3 görsel
+"END_WAKE_CORRIDOR_3": {
+    "text": (
+        "Bişeyler çok yanlış gitmiş ."
+    ),
+    "images": [
+        None,
+        "images/end_wake_corridor_2.png",
+        None,
+    ],
+    "ending_id": "END_WAKE_CORRIDOR_3",
+},
 
     "END_ATTACK_DISARM_ATTEMPT": {
         "text": (
-            "Genç halin sana bakıyor.||"
-            "Gözleri ‘soru’ değil… ‘öfke’.|||"
-            "O zaten kararnı vermiş "
-            "Sen bir adım öne çıkıyorsun.|||"
-            "Sen: \"Yapma.\"|||"
-            "Ama kelime havada kalıyor.|||"
-            "Silahına davranıyor ve:|||"
-            "Hademe karnını tutmaya başlıyor…||"
-            "hademe nefes nefese kalıyor…||"
-            "Ve yere yığılıyor …|||"
-            "Son nefesiyle 'herşey benim suçumdu'.|||"
-            "Genç haline bakıyorsun sen ne yaptın der gibi"
-            "Bana öyle bakamyı kes bunu yapmak zorundaydım"
-            "Hademe o zamanı bir arada tutmadığı için ozaman yokolmaya başlıyor"
-            "Saatler 02:18i göstermeye başlıyor"
-            "Portaldan geçmekten başka bi seçeeğiniz yok"
-            "Genç haline bakıp diyorsunki "
-            "Bakalım gelcek bize ne getirecek"
-            "Sana bakıp gülümsüyor ve diyorki"
-            "Daaha kötü olamaz"
+            "Bunu sen başlattın sen bitirmek zorundasın .||"
+            "Zamanın nasıl işlediğini biliyosun.|||"
+            "Yaptıklarının bedelini ödemeden gerek  "
+            "Demedinmi sanıyosun  .|||"
+            "Sadece işleri dahada karşmalıklaştırıyo|||"
+            "Tek bi farkla .|||"
+            "Artık ne yapmam gerektiğini biliyosun:|||"
+            "Birbirinize bakıyorsunuz ve anlıyor…||"
+            "Kafasıyla onaylıyor…||"
+            "Yavaş yavaş portaldan geçerken||"
+            "Son bi kez kafasını çevirip bakıyor …|||"
+            "Yaptıklarının sonuçlarının farkında'.|||"
+            "Ama elinden gelen tek şey devam etmek"
         ),
         "ending_id": "END_ATTACK_DISARM_ATTEMPT",
+            "images": [
+        "images/end_attack_disarm_1_look.png",
+        "images/end_attack_disarm_2_silence.png",
+        "images/end_attack_disarm_3_nod.png",
+    ],
     },
 
 "S15_RAY_VENT_ESCAPE_SOLO": {
@@ -1630,7 +1684,7 @@ STORY_TR = {
         "choices": {
             "1": ("h7 ", "S16_kilit_açılmıyor_a", []),
             "2": ("g6", "S16_şifre_doğru", []),
-            "3": ("f7", "S16_kilit_açılmıyor_C", []),
+            "3": ("f7", "S16_kilit_açılmıyor_c", []),
         },
     },
 
@@ -1683,7 +1737,7 @@ STORY_TR = {
             "2": ("Anahtarı al", "S16_KEY_TAKEN_SOLO", ["I_KEY"]),
         },
     },
-    "S16_şifre_doğru_duo": {
+    "S16_şifre_doğru_DUO": {
         "text": (
             "##Biliyordum.||"
             "Kilit açıldı.||"
@@ -2115,13 +2169,25 @@ STORY_TR = {
 },
 "S09_LOOP_ROOM_after_cleaner_men": {
     "text": (
-        "##Karnına doğru bi hamle yaptın.||"
-        "Ama senin yumruğunu tutup seni yere yatırdı||"
-        "Ve seni odana geri postaladı||"
+        "##bir anda yüzüne doğru bir yumruk çıkardın.||"
+        "[[BLACK3000]]"
+    ),
+    "images": [
+        None,
+        "images/s09_after_cleaner_men.png",
+        None,
+    ],
+    "auto_next": "S09_LOOP_ROOM_after_cleaner_men_MAIN",
+    "auto_next_after": True,
+    "auto_next_delay_ms": 0,
+},
+"S09_LOOP_ROOM_after_cleaner_men_MAIN": {
+    "text": (
+        "Seni odana geri postaladı||"
         "Bi hademe neden dövüşmeyi bilirki amk."
     ),
-"images": [
-        None,#('dövüş sahneleri'),
+    "images": [
+        None,  # ('dövüş sahneleri')
         "images/s09_loop_room.png",
         None,
     ],
@@ -2375,21 +2441,19 @@ STORY_TR = {
 "S16_JANITOR_INFO": {
     "text": (
         "Bir süre susuyor.||"
-        "Bazı geceler bazen geçmez , diyor.|||"
-        "İnsanlar ya fark etmez...||"
-        "ya da fark ettiğinde çok geç olur.|||"
-        "Sonra fısıldıyor:||"
+        "Birşey hatırlamayıyorsun .|||"
+        "Boşver||"
         "\"Kamera odasına gittin mi?\""
     ),
     "images": [
         None,
-        "images/s16_janitor_info.png",
+        "images/s16_janitor_info_copy.png",
         None,
     ],
     "choices": {
         "1": ("Evet de (yalan söyle)", "S8.4_ANSWER_HİM3", []),
         "2": ("Hayır de", "S17_JANITOR_REACT", []),
-        "3": ("Ayak seslerini sor", "8.4_ANSWER_HİM4", []),
+        "3": ("Ayak seslerini sor", "S8.4_ANSWER_HİM4", []),
     },
 },
      "S8.4_ANSWER_HİM4": {
@@ -2488,13 +2552,8 @@ STORY_TR = {
         "1": ("Ana Menü", "MAIN_MENU", []),
     },
 },
-    "END_E04": {"text": "Fişi çekersin.||Ekranlar söner.||Işıklar söner.||||Karanlık.||||Sonra ayak sesleri başlar.||Çıkış yok.", "image": "images/end_e04.png", "ending": True},
-    "END_E05": {"text": "Kayıtları silersin.||Bir saniyelik rahatlama.||||Sonra ekranlar şunu yazar:||02:17||||Altında:||\"TEKRAR DENE.\"", "image": "images/end_e05.png", "ending": True},
-    "END_E06": {"text": "Gözlerini kapatırsın.||||Açtığında tekrar yatağındasın.||02:17.||Ve nefes daha yakın.", "image": "images/end_e06.png", "ending": True},
-    "END_E07": {"text": "Gözlerini kapatırsın.||||Alarm sönümlenir.||Nefes sönümlenmez.||02:17 kalır.", "image": "images/end_e07.png", "ending": True},
-    "END_E08": {"text": "Çığlığın binada yankılanır.||||Kimse cevap vermez.||Sadece 02:17’nin sesi kalır.", "image": "images/end_e08.png", "ending": True},
-    "END_E09": {"text": "Her şeyi reddedersin.||||Bina bırakır.||Ama sen bırakamazsın.||02:17 seninle kalır.", "image": "images/end_e09.png", "ending": True},
-    "END_E10": {"text": "Kapıyı kapatırsın.||||Bir kilit sesi.||Bu sefer içeride kalan sensin.", "image": "images/end_e10.png", "ending": True},
+   
+    
     "END_CAUGHT_WHILE_REALIZING": {
     "text": (
         "Kaçmıyorsun.||"

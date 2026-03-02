@@ -68,6 +68,23 @@ def _clean_text_tokens(s):
     t = re.sub(r"[ \t]+", " ", t).strip()
     return t
 
+
+def _strip_cursor_token(text: str):
+    """Remove cursor blink token(s) from text and return (clean_text, found).
+
+    Accepts both [[BLINK]] and [BLINK] so story text never shows the token.
+    """
+    if text is None:
+        return text, False
+    s = str(text)
+    found = False
+    # Support both token variants
+    for tok in ("[[BLINK]]", "[BLINK]"):
+        if tok in s:
+            s = s.replace(tok, "")
+            found = True
+    return s, found
+
 def _extract_final_line_from_scene(scn):
     if not scn:
         return "..."
@@ -227,6 +244,10 @@ def show_ending_cinematic(scn):
         disable_choices()
     except Exception:
         pass
+
+    # If cursor blink token was placed before this PAGEBREAK, show blinking cursor here too.
+    if _cursor_blink_requested:
+        start_blink_cursor(force=True)
 
     try:
         carousel_canvas.place_forget()
@@ -1730,6 +1751,25 @@ def unlock_if_ending(scene_id: str):
     if not scene_id:
         return
     sid = str(scene_id)
+
+    # VISIT-ONCE: block entering an already visited scene (handles auto_next/direct go_to)
+    try:
+        target_scene = story.get(sid, {}) if story else {}
+        if SCENE_VISIT_ONCE and (sid in visited_scenes) and (not target_scene.get("repeatable", False)):
+            # If a fallback is provided on the CURRENT scene, go there instead
+            fb = None
+            try:
+                fb = scene.get("visited_fallback")
+            except Exception:
+                fb = None
+            if fb and fb in story:
+                sid = str(fb)
+            else:
+                print("[VISIT-ONCE] blocked re-entry:", sid)
+                return
+    except Exception:
+        pass
+
     if sid.startswith("END_"):
         if sid not in unlocked_endings:
             unlocked_endings.add(sid)
@@ -1742,6 +1782,19 @@ def unlock_if_ending(scene_id: str):
 BG_COLOR = "#0b0f1a"
 
 story = None
+
+# ============================
+# ✅ SCENE VISIT-ONCE SYSTEM
+# ============================
+# If True: a scene can only be entered once per run (unless scene['repeatable']=True)
+SCENE_VISIT_ONCE = True
+# Mode for choices that lead to an already visited scene:
+#  - "hide"    : remove that choice entirely
+#  - "disable" : show greyed out (disabled)
+VISITED_CHOICE_MODE = "hide"  # change to "disable" if you want grey buttons
+
+visited_scenes = set()
+
 current = "start"
 scene = None
 current_lang = None  # "EN" or "TR"
@@ -1814,6 +1867,23 @@ carousel_canvas = None
 card = None
 story_label = None
 choices_row = None
+
+# --- SPACE hint UI (appears if player doesn't press SPACE on pagebreak) ---
+space_hint_label = None
+_space_hint_job = None
+_space_hint_fade_job = None
+_space_hint_visible = False
+
+# --- Blinking cursor at end-of-text ---
+_cursor_job = None
+_cursor_visible = False
+_CURSOR_CHAR = "▍"
+cursor_label = None
+
+# Cursor trigger token (place in story text)
+CURSOR_TOKEN = "[[BLINK]]"
+_cursor_blink_requested = False  # set True when token seen on current page/scene
+
 choice_buttons = []
 choice_borders = []
 choice_containers = []
@@ -1833,7 +1903,7 @@ _vignette_job = None
 SPEAKER_MAP = {
     "▲": {"name": "Hademe", "icon": "images/speakers/janitor.png"},
     "■": {"name": "Ortanca Ben", "icon": "images/speakers/middle.png"},
-    "●": {"name": "Genç Ben", "icon": "ui/speakers/me_young.png"},
+    "●": {"name": "Genç Ben", "icon": "images/speakers/me_young.png"},
 }
 DEFAULT_SPEAKER = {"name": "", "icon": None}
 
@@ -3322,6 +3392,9 @@ def go_to(scene_id):
     So we DO NOT clear/stop media until the moment we actually switch.
     """
     global current
+    # UX: reset hint/cursor on scene change
+    _cancel_space_hint()
+    _stop_blink_cursor()
     cancel_auto_next()
     stop_clicks()
 
@@ -3421,10 +3494,201 @@ def schedule_auto_next_after_scene():
     return True
 
 
+
+# ------------------------------------------------------------
+# UX helpers: SPACE hint + blinking cursor
+# ------------------------------------------------------------
+def _cancel_space_hint():
+    global _space_hint_job, _space_hint_fade_job, _space_hint_visible
+    try:
+        if _space_hint_job is not None:
+            root.after_cancel(_space_hint_job)
+    except Exception:
+        pass
+    _space_hint_job = None
+    try:
+        if _space_hint_fade_job is not None:
+            root.after_cancel(_space_hint_fade_job)
+    except Exception:
+        pass
+    _space_hint_fade_job = None
+    _space_hint_visible = False
+    try:
+        if space_hint_label is not None:
+            space_hint_label.place_forget()
+    except Exception:
+        pass
+
+
+def _fade_in_space_hint(step=0, steps=12):
+    """Fade in by increasing text brightness."""
+    global _space_hint_fade_job, _space_hint_visible
+    if space_hint_label is None:
+        return
+    if step == 0:
+        # place under the text, above the choices
+        space_hint_label.place(relx=0.78, rely=0.78, anchor="center")
+        _space_hint_visible = True
+
+    # brightness ramp (dark -> light)
+    # 0..steps -> 0x20..0xE8
+    v = int(0x20 + (0xE8 - 0x20) * (step / max(1, steps)))
+    col = f"#{v:02x}{v:02x}{v:02x}"
+    space_hint_label.config(fg=col)
+
+    if step < steps:
+        _space_hint_fade_job = root.after(60, lambda: _fade_in_space_hint(step + 1, steps))
+    else:
+        _space_hint_fade_job = None
+
+
+def schedule_space_hint_if_needed(delay_ms=2000):
+    """If still waiting for pagebreak after delay, show SPACE hint."""
+    global _space_hint_job
+    _cancel_space_hint()
+
+    def _maybe_show():
+        global _space_hint_job
+        _space_hint_job = None
+        try:
+            if waiting_pagebreak:
+                _fade_in_space_hint(0, 12)
+        except Exception:
+            pass
+
+    _space_hint_job = root.after(int(delay_ms), _maybe_show)
+
+
+
+def _cursor_place_at_text_end():
+    """Place the blinking cursor right after the last visible character without changing story_label text."""
+    global cursor_label
+    if cursor_label is None or story_label is None:
+        return
+
+    txt_now = story_label.cget("text") or ""
+    if not txt_now.strip():
+        try:
+            cursor_label.place_forget()
+        except Exception:
+            pass
+        return
+
+    # Use last explicit line. (Label auto-wrapping can't be measured perfectly; this is a good approximation.)
+    lines = txt_now.split("\n")
+    last_line = lines[-1]
+
+    try:
+        f = tkfont.Font(font=story_label.cget("font"))
+        line_w = f.measure(last_line)
+        line_h = f.metrics("linespace")
+    except Exception:
+        line_w = 0
+        line_h = 24
+
+    try:
+        story_label.update_idletasks()
+        lw = max(1, story_label.winfo_width())
+    except Exception:
+        lw = 1
+
+    # story_label is justify='center'
+    start_x = max(0, (lw - line_w) // 2)
+    x = start_x + line_w
+    y = (len(lines) - 1) * line_h
+
+    try:
+        cursor_label.place(in_=story_label, x=x, y=y)
+    except Exception:
+        pass
+
+
+def _stop_blink_cursor():
+    global _cursor_job, _cursor_visible
+    try:
+        if _cursor_job is not None:
+            root.after_cancel(_cursor_job)
+    except Exception:
+        pass
+    _cursor_job = None
+    _cursor_visible = False
+    # hide cursor (do not modify story_label text)
+    try:
+        if cursor_label is not None:
+            cursor_label.config(fg=BG_COLOR)  # same as background -> invisible
+            cursor_label.place_forget()
+    except Exception:
+        pass
+
+
+def _blink_cursor_tick():
+    global _cursor_job, _cursor_visible
+    if not typing_done:
+        _stop_blink_cursor()
+        return
+
+    try:
+        if cursor_label is None:
+            return
+
+        # toggle visibility by changing fg (do not add/remove characters from text)
+        if _cursor_visible:
+            cursor_label.config(fg=BG_COLOR)
+            _cursor_visible = False
+        else:
+            cursor_label.config(fg="white")
+            _cursor_visible = True
+
+        _cursor_place_at_text_end()
+    except Exception:
+        pass
+
+    _cursor_job = root.after(500, _blink_cursor_tick)
+
+
+def start_blink_cursor(force=False):
+    """Start blinking cursor at end-of-visible text.
+
+    - Normally runs ONLY if a blink token was seen on the CURRENT page.
+    - If force=True, it will start even during pagebreak wait, and it will
+      retry shortly if typewriter hasn't finished yet (so it never 'misses').
+    """
+    global _cursor_job, _cursor_blink_requested
+
+    if not _cursor_blink_requested and not force:
+        return
+
+    # If typewriter still running, retry (force mode) instead of giving up.
+    if not typing_done:
+        if force:
+            try:
+                root.after(60, lambda: start_blink_cursor(force=True))
+            except Exception:
+                pass
+        return
+
+    if _cursor_job is not None:
+        return
+
+    # ensure first placement and visible state is synced
+    try:
+        if cursor_label is not None:
+            cursor_label.config(text=_CURSOR_CHAR, font=story_label.cget("font"))
+            cursor_label.config(fg="white")
+    except Exception:
+        pass
+
+    _cursor_place_at_text_end()
+    _blink_cursor_tick()
+
 # Typewriter
 def start_typewriter(text, on_done=None, clear_first=True):
     global full_text, index, click_count, typing_done, after_segment_hook
     after_segment_hook = on_done
+    # UX: reset hint + cursor on new typing
+    _cancel_space_hint()
+    _stop_blink_cursor()
+
 
     full_text = text or ""
     # ✅ Speaker auto-detect from leading symbol (▲ ■ ●)
@@ -3432,6 +3696,10 @@ def start_typewriter(text, on_done=None, clear_first=True):
         spk, cleaned = detect_speaker_from_line(full_text)
         update_speaker_ui(spk)
         full_text = cleaned
+        global _cursor_blink_requested
+        full_text, _found_cursor = _strip_cursor_token(full_text)
+        if _found_cursor:
+            _cursor_blink_requested = True
     except Exception:
         pass
     index = 0
@@ -3487,12 +3755,21 @@ def type_step():
 
     typing_done = True
     stop_clicks()
+    # UX: do NOT blink cursor per-segment; only at end of scene text
+    _stop_blink_cursor()
+
 
     if after_segment_hook:
         cb = after_segment_hook
         after_segment_hook = None
         root.after(HOOK_MS, cb)
         return
+
+    # UX: blink cursor only when token was placed in text
+    if _cursor_blink_requested:
+        start_blink_cursor(force=True)
+    else:
+        _stop_blink_cursor()
 
     show_buttons_for_scene()
 
@@ -3503,13 +3780,31 @@ def type_step():
 def _enter_pagebreak(wait_continue_cb):
     global waiting_pagebreak, _pagebreak_continue_cb
     waiting_pagebreak = True
+    _stop_blink_cursor()
     _pagebreak_continue_cb = wait_continue_cb
     disable_choices()
 
+    # If blink token was placed in this page, blink cursor while waiting for SPACE.
+    # Use a tiny delay so geometry/text are settled before placing the cursor.
+    if _cursor_blink_requested:
+        try:
+            root.after(10, lambda: start_blink_cursor(force=True))
+        except Exception:
+            start_blink_cursor(force=True)
+
+    # UX: if player doesn't press SPACE, show hint after 2s
+    schedule_space_hint_if_needed(2000)
+
+
 
 def _continue_after_pagebreak():
-    global waiting_pagebreak, _pagebreak_continue_cb
+    global waiting_pagebreak, _pagebreak_continue_cb, _cursor_blink_requested
     waiting_pagebreak = False
+    _cancel_space_hint()
+    _stop_blink_cursor()
+    # Reset blink request for next page; it must be explicitly added again.
+    _cursor_blink_requested = False
+
     cb = _pagebreak_continue_cb
     _pagebreak_continue_cb = None
     story_label.config(text="")
@@ -3740,6 +4035,18 @@ def load_scene():
     sfx_started_this_scene = False
 
     scene = story[current]
+
+    # reset cursor blink token for this new scene
+    global _cursor_blink_requested
+    _cursor_blink_requested = False
+
+    # mark visit (for "visit once" mechanic)
+    try:
+        if SCENE_VISIT_ONCE and not scene.get("repeatable", False):
+            visited_scenes.add(str(current))
+    except Exception:
+        pass
+
     unlock_if_ending(current)
     # ✅ Scene start music override (stop main music -> play scene/ending music immediately)
     try:
@@ -3895,6 +4202,14 @@ def show_buttons_for_scene():
     if schedule_auto_next_after_scene():
         return
 
+    # UX: if a blink token was requested for this page/segment, start blinking cursor
+    # even when choices are about to be shown (e.g., after skip_typing).
+    try:
+        if globals().get('_cursor_blink_requested', False) and globals().get('typing_done', False):
+            root.after(30, lambda: start_blink_cursor(force=True))
+    except Exception:
+        pass
+
     # ✅ Dinamik buton sayısı: sahnede kaç seçenek varsa sadece onları göster.
     # - 1 seçenek -> 1 buton
     # - 2 seçenek -> 2 buton
@@ -3946,6 +4261,15 @@ def show_buttons_for_scene():
         exists = False
         if k in resolved:
             exists = True
+            # VISIT-ONCE: if choice leads to an already visited scene and mode is hide, treat as non-existent
+            if SCENE_VISIT_ONCE and VISITED_CHOICE_MODE == "hide":
+                try:
+                    target_id = resolved[k][1]
+                    target_scene = story.get(target_id, {}) if story else {}
+                    if (str(target_id) in visited_scenes) and (not target_scene.get("repeatable", False)):
+                        exists = False
+                except Exception:
+                    pass
         elif k in locked:
             exists = True
 
@@ -3961,7 +4285,20 @@ def show_buttons_for_scene():
     for i, k in enumerate(keys):
         if k in resolved:
             txt = resolved[k][0]
-            choice_buttons[i].config(text=txt, command=lambda kk=k: choose(kk), state="normal")
+            # VISIT-ONCE: hide/disable choices that would re-enter an already visited scene
+            try:
+                target_id = resolved[k][1]
+                target_scene = story.get(target_id, {}) if story else {}
+                already = (SCENE_VISIT_ONCE and (str(target_id) in visited_scenes) and (not target_scene.get("repeatable", False)))
+            except Exception:
+                already = False
+
+            if already and VISITED_CHOICE_MODE == "hide":
+                choice_buttons[i].config(text="", command=lambda: None, state="disabled")
+            elif already and VISITED_CHOICE_MODE == "disable":
+                choice_buttons[i].config(text=f"✓ {txt}", command=lambda: None, state="disabled")
+            else:
+                choice_buttons[i].config(text=txt, command=lambda kk=k: choose(kk), state="normal")
         elif k in locked:
             txt = locked[k]
             choice_buttons[i].config(text=f"🔒 {txt}", command=lambda: None, state="disabled")
@@ -4494,7 +4831,7 @@ class InventoryOverlay:
         self.opened = False
 
         self.btn = tk.Button(
-            master, text="Çanta",
+            master, text="",
             command=self.toggle,
             bg="#0f1730", fg="#cfd6ff", bd=0,
             activebackground="#24335c", activeforeground="white",
@@ -4598,7 +4935,7 @@ def show_main_menu():
     _init_menu_canvas_if_needed()
 
     card.pack(side="bottom", padx=30, pady=(0, 90), fill="x")  # lift card up; tweak 90 later
-    story_label.config(text="02:17\n\nAna Menü")
+    story_label.config(text="\n\n")
 
     def _open_settings():
         try:
@@ -4608,9 +4945,9 @@ def show_main_menu():
             pass
 
     choice_buttons[0].config(text="GALLERY", command=show_gallery, state="normal")
-    choice_buttons[1].config(text="BAŞLA", command=show_language_screen, state="normal")
-    choice_buttons[2].config(text="AYARLAR", command=_open_settings, state="normal")
-    choice_buttons[3].config(text="ÇIKIŞ", command=on_escape, state="normal")
+    choice_buttons[1].config(text="START", command=show_language_screen, state="normal")
+    choice_buttons[2].config(text="SETTINGS", command=_open_settings, state="normal")
+    choice_buttons[3].config(text="EXIT", command=on_escape, state="normal")
 
     # ✅ Ensure all main menu buttons are visible (ending flow may have hidden them)
     try:
@@ -4816,6 +5153,10 @@ def skip_typing(e=None):
     typing_done = True
     stop_clicks()
 
+    # UX: do NOT blink cursor per-segment; only at end of scene text
+    _stop_blink_cursor()
+
+
     if after_segment_hook:
         cb = after_segment_hook
         after_segment_hook = None
@@ -4915,7 +5256,13 @@ story_label = tk.Label(card, text="Select Language / Dil Seç",
                        font=("Segoe UI Semibold", 22), wraplength=1500, justify="center",
                        bg=BG_COLOR, fg="white")
 story_label.configure(anchor="n")  # text starts from top
-story_label.pack(padx=(140, 22), pady=(10, 10), fill="x")  # fixed: top-aligned text area
+story_label.pack(padx=(180,180), pady=(10, 10), fill="x")  # fixed: top-aligned text area
+
+
+# --- Blinking cursor label (separate from story_label to avoid center-shift) ---
+cursor_label = tk.Label(card, text=_CURSOR_CHAR, fg=BG_COLOR, bg=BG_COLOR,
+                        font=story_label.cget("font"))
+# hidden initially (we use place when needed)
 
 
 # ✅ Speaker HUD (portrait + name) - left side inside the text card
@@ -4940,6 +5287,17 @@ speaker_name_label.pack(pady=(6, 0))
 
 choices_row = tk.Frame(card, bg=BG_COLOR)
 choices_row.pack(pady=(0, 18))
+
+# --- SPACE hint label (hidden by default) ---
+space_hint_label = tk.Label(
+    card,
+    text="Space...",
+    fg="#0f1730",  # start almost invisible
+    bg=BG_COLOR,
+    font=("Segoe UI Semibold", 18),
+)
+# We'll use place() when showing; keep it hidden initially.
+
 
 choice_buttons = []
 choice_borders = []
