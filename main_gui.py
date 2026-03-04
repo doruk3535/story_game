@@ -520,6 +520,216 @@ def show_ending_sequence_cinematic(scn: dict, cfg: dict):
     lbl = tk.Label(ov, bg="black", bd=0)
     lbl.place(relx=0.5, rely=0.5, anchor="center")
 
+    # ✅ Ending-sequence bottom text overlay (BLACK background) + TYPEWRITER
+    # ending_sequence_cfg supports:
+    #   overlay_text: "text"
+    #   overlay_texts: ["t1","t2",...]   # per frame
+    # Optional:
+    #   overlay_font, overlay_fg, overlay_bg, overlay_wrap, overlay_relx, overlay_rely
+    #   overlay_type_ms (defaults to TYPE_MS), overlay_typewriter (default True)
+    _overlay_lbl = None
+    _overlay_texts = None
+    _base_overlay_text = ""
+    _ov_job = None
+
+    try:
+        _overlay_texts = cfg.get("overlay_texts")
+    except Exception:
+        _overlay_texts = None
+    if isinstance(_overlay_texts, (list, tuple)) and _overlay_texts:
+        _overlay_texts = [str(x) for x in _overlay_texts]
+    else:
+        _overlay_texts = None
+
+    try:
+        _base_overlay_text = str(cfg.get("overlay_text", "") or "")
+    except Exception:
+        _base_overlay_text = ""
+
+    try:
+        _ov_font = cfg.get("overlay_font", story_label.cget("font"))
+    except Exception:
+        _ov_font = ("Segoe UI Semibold", 22)
+
+    try:
+        _ov_fg = str(cfg.get("overlay_fg", "white"))
+    except Exception:
+        _ov_fg = "white"
+
+    try:
+        _ov_bg = str(cfg.get("overlay_bg", "black"))
+    except Exception:
+        _ov_bg = "black"
+
+    try:
+        _ov_wrap = int(cfg.get("overlay_wrap", int(sw * 0.80)))
+    except Exception:
+        _ov_wrap = int(sw * 0.80)
+
+    try:
+        _ov_relx = float(cfg.get("overlay_relx", 0.5))
+    except Exception:
+        _ov_relx = 0.5
+    try:
+        _ov_rely = float(cfg.get("overlay_rely", 0.92))
+    except Exception:
+        _ov_rely = 0.92
+
+    try:
+        _ov_typewriter = bool(cfg.get("overlay_typewriter", True))
+    except Exception:
+        _ov_typewriter = True
+    try:
+        _ov_type_ms = int(cfg.get("overlay_type_ms", TYPE_MS))
+    except Exception:
+        _ov_type_ms = TYPE_MS
+
+    def _ov_cancel_job():
+        nonlocal _ov_job
+        try:
+            if _ov_job is not None:
+                root.after_cancel(_ov_job)
+        except Exception:
+            pass
+        _ov_job = None
+
+    def _ov_typewrite(text: str):
+        nonlocal _overlay_lbl, _ov_job
+        _ov_cancel_job()
+        if _overlay_lbl is None:
+            return
+
+        full = str(text or "")
+
+        # Token behavior for overlay text:
+        #   "||"  -> newline + short pause (smooth typing)
+        #   "|||" -> newline + longer pause
+        #   "□"   -> 1s pause (not printed)
+        try:
+            seg_pause_ms = int(cfg.get("overlay_seg_pause_ms", 500))
+        except Exception:
+            seg_pause_ms = 140
+        try:
+            page_pause_ms = int(cfg.get("overlay_page_pause_ms", 900))
+        except Exception:
+            page_pause_ms = 420
+        try:
+            box_pause_ms = int(cfg.get("overlay_box_pause_ms", 1000))
+        except Exception:
+            box_pause_ms = 1000
+
+        # Build action list: ("ch", char) or ("pause", ms)
+        actions = []
+        i = 0
+        while i < len(full):
+            # Handle triple first
+            if full.startswith("|||", i):
+                actions.append(("pause", page_pause_ms))
+                actions.append(("ch", "\n"))
+                i += 3
+                continue
+            if full.startswith("||", i):
+                actions.append(("pause", seg_pause_ms))
+                actions.append(("ch", "\n"))
+                i += 2
+                continue
+            if full[i] == "□":
+                actions.append(("pause", box_pause_ms))
+                i += 1
+                continue
+            # Normal character
+            actions.append(("ch", full[i]))
+            i += 1
+
+        if not _ov_typewriter:
+            # Render immediately (convert tokens already handled)
+            out = []
+            for kind, val in actions:
+                if kind == "ch":
+                    out.append(val)
+            try:
+                _overlay_lbl.config(text="".join(out))
+            except Exception:
+                pass
+            return
+
+        # Typewriter render
+        try:
+            _overlay_lbl.config(text="")
+        except Exception:
+            pass
+
+        out_chars = []
+        idx = 0
+
+        def _step():
+            nonlocal idx, _ov_job
+            if not _endseq_running:
+                return
+
+            if idx >= len(actions):
+                _ov_job = None
+                return
+
+            kind, val = actions[idx]
+            idx += 1
+
+            if kind == "pause":
+                _ov_job = root.after(int(val), _step)
+                return
+
+            # kind == "ch"
+            out_chars.append(val)
+            try:
+                _overlay_lbl.config(text="".join(out_chars))
+            except Exception:
+                _ov_job = None
+                return
+
+            _ov_job = root.after(_ov_type_ms, _step)
+
+        _step()
+
+    # Create overlay label only if there is any overlay text configured
+    _t0 = _overlay_texts[0] if _overlay_texts else _base_overlay_text
+    try:
+        _t0 = str(_t0 or "").strip()
+    except Exception:
+        _t0 = ""
+
+    if _t0:
+        _overlay_lbl = tk.Label(
+            ov,
+            text="",
+            bg=_ov_bg,
+            fg=_ov_fg,
+            font=_ov_font,
+            justify="center",
+            wraplength=_ov_wrap,
+            bd=0,
+        )
+        _overlay_lbl.place(relx=_ov_relx, rely=_ov_rely, anchor="center")
+        _overlay_lbl.lift()
+        try:
+            _overlay_lbl.config(fg="#000000")
+        except Exception:
+            pass
+        _ov_typewrite(_t0)
+
+    def _ov_set_text_for_frame(frame_idx: int):
+        if _overlay_lbl is None:
+            return
+        try:
+            if _overlay_texts:
+                t = _overlay_texts[frame_idx] if frame_idx < len(_overlay_texts) else _overlay_texts[-1]
+            else:
+                t = _base_overlay_text
+            _overlay_lbl.lift()
+            _ov_typewrite(str(t or ""))
+        except Exception:
+            pass
+
+
     if not PIL_OK:
         # If PIL isn't available, fallback to previous implementation using alpha (may flash).
         # But in your project PIL should be available.
@@ -595,6 +805,15 @@ def show_ending_sequence_cinematic(scn: dict, cfg: dict):
         ph = ImageTk.PhotoImage(im)
         lbl.config(image=ph)
         lbl.image = ph
+        # ✅ Fade overlay text together with the image fade (t: 0.0 -> 1.0)
+        try:
+            if _overlay_lbl is not None:
+                v = int(max(0.0, min(1.0, float(t))) * 255)
+                col = f"#{v:02x}{v:02x}{v:02x}"
+                _overlay_lbl.config(fg=col)
+        except Exception:
+            pass
+
 
     def _anim(frame_idx: int, start_t: float, end_t: float, total_ms: int, on_end):
         steps = fade_steps if total_ms > 0 else 1
@@ -629,6 +848,12 @@ def show_ending_sequence_cinematic(scn: dict, cfg: dict):
 
         # Always start each frame fully black (prevents any flash)
         _set_blend(i, 0.0)
+
+        # ✅ update bottom overlay text for this frame (typewriter)
+        try:
+            _ov_set_text_for_frame(i)
+        except Exception:
+            pass
 
         # Fade in
         def _after_in():
