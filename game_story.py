@@ -104,7 +104,21 @@ STORY_TR = {
             "3": ("Odaya geri dön", "S09_LOOP_ROOM", []),
         },
     },
-
+"S04_CORRIDOR7": {
+   "text": (
+            "##Tekrar koridordasın||"
+            "Bomboş||"
+            "Az önce biri vardı||"
+            "Ama artık yok."
+            "[[BLINK]]"
+        ),
+        "images": [None, "images/s04_corridor_empty.png", None],
+        "choices": {
+            "1": ("Yangın merdivenine git", "S15_FIRE_EXIT", []),
+            "2": ("Yemekhaneye yönel", "S16_CAFETERIA_FROM_CAMERA", []),
+            "3": ("Odana geri dön", "S09_LOOP_ROOM_4", []),
+        },
+    },
     "S04_CORRIDOR_After_NOTIFICATION": {
         "text": (
             "##Koridor sessiz||"
@@ -363,8 +377,35 @@ STORY_TR = {
         "3": ("Hepimiz beraber kaçalım", "END_DUO_ESCAPE_ALL_THREE", []),
     },
 },
+"END_DUO_ESCAPE_ALL_THREE": {
+    "text": (
+        "##Ozaman bizimle gel.|||"
+        "Zamanı bizden daha biliyosun||"
+        "Sana ihtiyacımız var.|||"
+        "Hayatın boyunca burda tutsak yaşıyamazsın.||"
+        "Bu riski alamam||"
+        "Biz burdan gidiyoruz |||"
+        "SENLE YADA SENSİZ |||"
+        "##Portaldan geçiyorsunuz.||"
+        "AHHH.||"
+        "Gerçekten ne kadarda inatçıyım.||"
+        "##Benide bekleyin.||"
+    ),
+    "images": [
+        "images/end_duo_two_leave_4_dash_into_portal.png",
+        "images/end_duo_two_leave_2_time_layers_flash.png",
+        "images/end_attack_portal_jump_3_follow.png",
+    ],
 
-# 1) Portal sonrası yatak / 02:18 (otomatik)
+    # ✅ MÜZİK EN BAŞTAN
+    "scene_music": "sounds/ending_theme6.mp3",
+    "scene_music_volume": 0.20,
+
+    "auto_next": "END_ATTACK_WHITE_ROOM",
+    "auto_next_after": True,
+    "auto_next_delay_ms": 0,
+    "ending_id": "END_ATTACK_PORTAL_JUMP",
+},
 "END_DUO_ESCAPE_TWO_LEAVE": {
     "text": (
         "##Gelecekteki halinin bileğini yakalıyorsun.||"
@@ -374,21 +415,25 @@ STORY_TR = {
         "##İkiniz birden portala hamle ediyorsunuz.|||"
         "Hademe arkanızdan bağırıyor:||"
         "\"Durun!\"||"
-        "\"Söylediklerimden hiçmi bişey anlamadınız\"||"
-        "\"Bütün varoluşu yokediceksiniz\"|||"
+        "\"Söylediklerimden hiç mi bir şey anlamadınız\"||"
+        "\"Bütün varoluşu yok edeceksiniz\"|||"
         "##Ama artık duymuyorsunuz bile.||"
         "Portalın içi sizi yutuyor.||"
     ),
+
     "images": [
         "images/end_duo_two_leave_1_dash_into_portal.png",
         "images/end_duo_two_leave_2_time_layers_flash.png",
         "images/end_duo_two_leave_3_bed_0218.png",
     ],
+
+    "scene_music": "sounds/ending_theme4.mp3",
+    "scene_music_volume": 0.20,
+
     "auto_next": "S18_DUO_WAKEUP_0218",
     "auto_next_after": True,
     "auto_next_delay_ms": 350,
 },
-
 # 2) Uyanma sahnesi (seçenek: sadece koridora çık)
 "S18_DUO_WAKEUP_0218": {
     "text": (
@@ -411,39 +456,51 @@ STORY_TR = {
     },
 },
 
-# 3) Yarığı görme sahnesi (ENDING)
 "S18_DUO_SEE_RIFT": {
-    "text": (
-        "Kapıyı açıyorsun.||"
-        "Koridora adım atar atmaz…||"
-        "#Yarık|||"
-        "Zaman çoktan yok olmaya başlamış.||"
-        "Biz ne yaptık bu.||"
-        "-Bunu biz yapmadık|||"
-    ),
-    "images": [
-        None,
-        "images/s18_rift_2_giant_time_rift.png",
-        None,
-    ],
-    "ending_id": "END_DUO_RIFT_OUTSIDE",
-     "ending": True,
+    "layout": "single_focus",
+    "image": "images/s18_rift_2_giant_time_rift.png",
+    "text": "##",
+
+    "ending": True,
     "ending_id": "END_DUO_RIFT_OUTSIDE",
 
-    "final_screen_line": "Ama biz düzelticez",
+    "ending_sequence_cfg": {
+        "images": [
+            "images/s18_rift_2_giant_time_rift.png",
+        ],
+        "holds_ms": [5000],
+
+        "instant_switch": False,
+        "fade_in_ms": 1200,
+        "fade_out_ms": 900,
+        "fade_steps": 64,
+        "cover": True,
+
+        "overlay_text": (
+            "Kapıyı açıyorsun.||"
+            "Koridora adım atar atmaz…|||"
+            "Yarık.|||"
+            "Zaman çoktan yok olmaya başlamış.||"
+            "Biz ne yaptık bu.||"
+            "-Bunu biz yapmadık.|||"
+        ),
+
+        "overlay_type_ms": 55,
+        "overlay_seg_pause_ms": 260,
+        "overlay_page_pause_ms": 700,
+        "overlay_box_pause_ms": 1200,
+
+        "next_scene": "LOBBY",
+    },
+
+    "final_screen_line": "Ama biz düzelteceğiz.",
     "ending_title": "Zamansız Son",
 
     "final_type_ms": 55,
     "final_hold_ms": 2400,
     "final_fade_ms": 1400,
     "title_pop_steps": 10,
-
-    "auto_next": "LOBBY",
-    "auto_next_after": True,
-    "auto_delay_ms": 0,
-    "auto_next_delay_ms": 0,
 },
-
 
 "END_DUO_STAY_SOLO_SACRIFICE": {
     "text": (
@@ -469,52 +526,6 @@ STORY_TR = {
     "auto_next_delay_ms": 0,
 },
 
-"END_DUO_ESCAPE_ALL_THREE": {
-                            
-    "text": (
-        "Sen hademeye bakıyorsun.|||"
-        "Sen: \"Madem hepimiz aynıyız…||"
-        "o zaman birlikte bitirelim.\"|||"
-        "ORTANCA: \"Ne yapıyorsun?\"|||"
-        "Sen: \"Onu da götürelim.\"|||"
-        "Hademe ilk defa gerçekten sarsılıyor.|||"
-        "\"Ben…\" diyor.||"
-        "\"Ben bunu hak etmiyorum.\"|||"
-        "Sen bir adım yaklaşıyorsun.|||"
-        "Sen: \"Belki de mesele hak etmek değil.||"
-        "Mesele… bitirmek.\"|||"
-        "ORTANCA nefes alıyor.|||"
-        "Sonra başını sallıyor: \"Tamam.\"|||"
-        "Üçünüz aynı anda portala yaklaşıyorsunuz.|||"
-        "Portal çılgın gibi dalgalanıyor.|||"
-        "Sanki kararınız onu rahatsız etmiş gibi.|||"
-        "Hademe fısıldıyor:|||"
-        "\"Eğer gidersem… zaman tutunacak bir şey bulamayacak.\"|||"
-        "Sen: \"O zaman…||"
-        "ya özgür olur… ya yıkılır.\"|||"
-        "Üçünüz birden atlıyorsunuz.|||"
-        "Bir an… her şey sessizleşiyor.|||"
-        "Sonra dünya katlanıyor.|||"
-        "Renkler yok.||"
-        "Sesler yok.|||"
-        "Sadece bir sayı:|||"
-        "02:17|||"
-        "…ve ardından…|||"
-        "02:18.|||"
-        "Gözlerini açıyorsun.|||"
-        "Yatak.||"
-        "Tavan.|||"
-        "Ortanca halin yanında.|||"
-        "Ve hademe… yok.|||"
-        "Telefonun ekranı yanıyor.|||"
-        "Bir bildirim:|||"
-        "\"Zaman serbest.|||"
-        "Ama artık koruyan yok.\"|||"
-        "Dışarıdan bir siren sesi geliyor.|||"
-        "Uzakta… bir şeyler yanıyormuş gibi."
-    ),
-    "ending_id": "END_DUO_ESCAPE_ALL_THREE",
-},
 
 "S16_DUO_CHECK_SOUND": {
     "images": [
@@ -1011,7 +1022,7 @@ STORY_TR = {
 "S15_HIDE_SILENT_1": {
     "text": (
         "##Nefesini tutuyorsun||"
-        "Nerdeyse hiç kıpardmıyorsun||"
+        "Nerdeyse hiç kıpırdmıyorsun||"
         "Hademe de kıpırdamıyor.|| "
         "Sanki zaten biliyor.||"
         "Orada olduğunu.||"
@@ -1028,7 +1039,7 @@ STORY_TR = {
 "S15_HIDE_SILENT_1_DUO": {
     "text": (
         "##Nefesini tutuyorsun||"
-        "Nerdeyse hiç kıpardmıyorsunuz||"
+        "Nerdeyse hiç kıpırdmıyorsunuz||"
         "Hademe de kıpırdamıyor.|| "
         "Sanki zaten biliyor.||"
         "Orada olduğunuzu.||"
@@ -1361,13 +1372,17 @@ STORY_TR = {
         "Bir an bile tereddüt etmiyor.|||"
         "##İkiniz birden portala atlamak için hamle ediyorsunuz.||"
         "##Bunun olmasına izin veremem, deyip arkanızdan atlıyor.||"
-        
     ),
     "images": [
         "images/end_duo_two_leave_1_dash_into_portal.png",
         "images/end_duo_two_leave_2_time_layers_flash.png",
         "images/end_attack_portal_jump_3_follow.png",
     ],
+
+    # ✅ MÜZİK EN BAŞTAN
+    "scene_music": "sounds/ending_theme6.mp3",
+    "scene_music_volume": 0.20,
+
     "auto_next": "END_ATTACK_WHITE_ROOM",
     "auto_next_after": True,
     "auto_next_delay_ms": 0,
@@ -1395,26 +1410,46 @@ STORY_TR = {
     "auto_next_delay_ms": 0,
 },
 
-# 3) KAPI ÖNÜ / TEK BÜYÜK GÖRSEL (single) -> auto_next: NARRATOR_REVEAL_SINGLE
 "END_ATTACK_NARRATOR_DOOR_SINGLE": {
-    "layout": "single",
-    "image": "images/end_attack_door_single.png",
-    "text": (
-        "##Ah çocuklar"
-    ),
-    "auto_next": "END_ATTACK_NARRATOR_REVEAL_SINGLE",
-    "auto_next_after": True,
-    "auto_next_delay_ms": 5000,
-},
-
-# 4) ANLATICININ ODASI / TEK BÜYÜK GÖRSEL (single) -> (istersen buradan başka yere de auto_next bağlarız)
-"END_ATTACK_NARRATOR_REVEAL_SINGLE": {
-    "layout": "single",
+    "layout": "single_focus",
     "image": "images/end_attack_narrator_room_single.png",
-    "text": (
-        "Bende sizi bekliyordum"
-    ),
-    "ending_id": "END_ATTACK_NARRATOR_REVEAL_SINGLE",
+    "text": "##",
+
+    "ending": True,
+    "ending_id": "END_ATTACK_NARRATOR_ENDING",
+
+    "ending_sequence_cfg": {
+        "images": [
+            "images/end_attack_door_single.png",
+            "images/end_attack_narrator_room_single.png",
+        ],
+        "holds_ms": [2000, 5000],
+
+        "instant_switch": False,
+        "fade_in_ms": 1200,
+        "fade_out_ms": 900,
+        "fade_steps": 64,
+        "cover": True,
+
+        "overlay_text": (
+            "Ah çocuklar...||"
+            
+        ),
+
+        "overlay_type_ms": 55,
+        "overlay_seg_pause_ms": 260,
+        "overlay_page_pause_ms": 700,
+        "overlay_box_pause_ms": 1200,
+
+        "next_scene": "LOBBY",
+    },
+
+    "ending_title": "Zamansız Son",
+    "final_screen_line": "",
+    "final_type_ms": 50,
+    "final_hold_ms": 3000,
+    "final_fade_ms": 1600,
+    "title_pop_steps": 10,
 },
 
 # 1) END_ATTACK_SURRENDER -> 3 görsel -> auto_next: YATAK (tekli)
@@ -1875,10 +1910,10 @@ STORY_TR = {
     # burada scene_music YOK -> önceki müzik devam eder
 
     "text": (
-        "##Portala bakıyorsun||"
-        "Gözlerin keskin ||"
-        "##Portalda gelen uçsuz bucaksız zamanın akışına bakıyorsun|||"
-        "Derin bi nefes çekip||"
+        "##Portala bakıyorsun□||"
+        "Gözlerin keskin□ ||"
+        "##Portalda gelen uçsuz bucaksız zamanın akışında kaybolurken|||"
+        "Derin bi nefes çekip□||"
         "##Kendini akıp giden portalın içine bırakıyorsun.||"
 
     ),
@@ -1900,23 +1935,25 @@ STORY_TR = {
     ],
 
     "text": (
-        "##Gözlerini açıyorsun.||"
-        "Yatak.||"
-        "Tavan.||"
+        "##Gözlerini açıyorsun.□||"
+        "Yatak.□||"
+        "Tavan.□||"
         "##Odanın kokusu.|||"
-        "Her şey… aynı.||"
-        "Doğrulup saate bakıyorsun.||"
+        "Her şey… aynı.□||"
+        "Doğrulup saate bakıyorsun.□||"
         "##Saat: 02:18.|||"
         "Ama noldu her şey yoluna mı girdi?||"
         "Tam o sırada bir ses duyuyorsun…|||"
     ),
+
+ 
+
 
     "ending": True,
     "ending_id": "END_SOLO_ESCAPE_PORTAL",
 
     "final_screen_line": "Herşey yeni başlıyor.",
     "ending_title": "Basit Son",
-
     "final_type_ms": 55,
     "final_hold_ms": 2400,
     "final_fade_ms": 1400,
@@ -1924,7 +1961,6 @@ STORY_TR = {
 
     "auto_next": "LOBBY",
     "auto_next_after": True,
-    "auto_delay_ms": 0,
     "auto_next_delay_ms": 0,
 },
 "END_SOLO_ESCAPE_ASK": {
@@ -1983,12 +2019,12 @@ STORY_TR = {
         ),
         "choices": {
             "1": ("Kal ve zamanı koru", "END_SOLO_STAY_PROTECT_TIME_A", []),
-            "2": ("Ayrıl ve özgür ol", "END_SOLO_LEAVE_FREE", []),
+            "2": ("Ayrıl ve özgür ol", "END_SOLO_ESCAPE_PORTAL_VIDEO2", []),
         },
     },
 
 "END_SOLO_STAY_PROTECT_TIME_A": {
-    "layout": "single",
+    "layout": "single_focus",  # ✅ tam ekran
     "image": "images/end_solo_stay_a_hand_reach.png",
     "text": (
         "##Hademe elini uzatıyor.||"
@@ -1998,27 +2034,31 @@ STORY_TR = {
     ),
 
     # ✅ MÜZİK (bu ending akışının başında başlar)
-    "scene_music": "sounds/ending_theme2.mp3",   # istediğin dosya adı
+    "scene_music": "sounds/ending_theme2.mp3",
     "scene_music_volume": 0.20,
 
+    
     "auto_next": "END_SOLO_STAY_PROTECT_TIME_B",
     "auto_next_after": True,
     "auto_next_delay_ms": 0,
 },
 
 "END_SOLO_STAY_PROTECT_TIME_B": {
+    "layout": "single_focus",  # ✅ tam ekran
+    "image": "images/scene_fire_exit_door.png",  # ✅ ortadaki görseli fullscreen göster
     "text": (
         "##İnsanlık için bunu yapmalıyım.||"
         "Başka bir yol yok."
     ),
-    "images": [None, "images/scene_fire_exit_door.png", None],
+    "images": [None, "images/scene_fire_exit_door.png", None],  # ✅ aynen duruyor
+
     "auto_next": "END_SOLO_STAY_PROTECT_TIME_ENDING",
     "auto_next_after": True,
     "auto_next_delay_ms": 200,
 },
 
 "END_SOLO_STAY_PROTECT_TIME_ENDING": {
-    "layout": "single",
+    "layout": "single_focus",  # ✅ tam ekran
     "image": "images/end_solo_stay_year_4.png",  # fallback
     "text": "##",
 
@@ -2034,13 +2074,13 @@ STORY_TR = {
         ],
         "holds_ms": [3000, 3000, 3000, 3000],
 
-        "instant_switch": False,   # fade açık
-        "fade_in_ms": 4500,        # 5sn açılış
-        "fade_out_ms": 3000,       # 4sn kapanış
-        "fade_steps": 64,
+        "instant_switch": False,
+        "fade_in_ms": 3500,
+        "fade_out_ms": 2000,
+        "fade_steps": 128,
 
-        "cover": True,             # tam ekran (crop’lu)
-        "next_scene": "LOBBY",      # sequence + final yazılar bitince lobiye dön
+        "cover": True,        # ✅ zaten tam ekran
+        "next_scene": "LOBBY",
     },
 
     "final_screen_line": "Zaman artık güvende.",
@@ -2048,23 +2088,29 @@ STORY_TR = {
     "final_type_ms": 55,
     "title_pop_steps": 10,
 },
-    "END_SOLO_LEAVE_FREE": {
-        "text": (
-            "Geri çekilmiyorsun.||"
-            "Bir adım ileri gidiyorsun.||"
-            "Hademe ‘dur’diye sesleniyor.||"
-            "Herşeyi mahvediceksin.|||"
-            "Tutsak ve güvenli bi ömür geçirmektense.||"
-            "Özgür ve bilinmez bi sonu tercih ederim.|||"
-            "Portalın içi dalgalanıyor.||"
-            "Özgürlük, diyorsun.||"
+"END_SOLO_ESCAPE_PORTAL_VIDEO2": {
+    "layout": "single_focus", 
+    "image": "images/portal_copy.png",
 
-        ),
-       "auto_next": "END_SOLO_ESCAPE_PORTAL2",
+     # ✅ şart
+    "video": {"path": "images/videos/portal_end.mp4", "fps": 24, "loop": True},
+
+    "scene_music": "sounds/ending_portal_loop.mp3",
+    "scene_music_volume": 0.25,
+
+    "text": (
+        "Portal önünde dalgalanırken ||"
+        "Senin aklında tek birşey var||"
+        "Bir an önce burdan kurtulmak||"
+    ),
+
+    "auto_next": "END_SOLO_ESCAPE_PORTAL2",
     "auto_next_after": True,
     "auto_delay_ms": 0,
     "auto_next_delay_ms": 0,
 },
+
+
 "END_SOLO_ESCAPE_PORTAL2": {
     "layout": "triptych",
     "images": [
@@ -2106,15 +2152,39 @@ STORY_TR = {
         "Tavan.||"
         "##Odanın kokusu.|||"
         "Her şey… aynı.||"
-        "Bunun herşeyi yok etmesi gerekmiyormuydu.||"
+        "Bunun her şeyi yok etmesi gerekmiyor muydu.||"
         "Doğrulup saate bakıyorsun.||"
         "##Saat: 02:18.|||"
-        "Ama noldu her şey yoluna mı girdi?||"
+        "Ama ne oldu, her şey yoluna mı girdi?||"
         "Tam o sırada bir ses duyuyorsun…|||"
     ),
 
+    "auto_next": "END_SOLO_ESCAPE_PORTAL_ENDING2_FINAL",
+    "auto_next_after": True,
+    "auto_next_delay_ms": 0,
+},
+"END_SOLO_ESCAPE_PORTAL_ENDING2_FINAL": {
+    "layout": "single_focus",
+    "image": "images/end_ending_final.png",
+    "text": "##",
+
     "ending": True,
     "ending_id": "END_SOLO_ESCAPE_PORTAL2",
+
+    "ending_sequence_cfg": {
+        "images": [
+            "images/end_ending_final.png",
+        ],
+        "holds_ms": [3000],
+
+        "instant_switch": False,
+        "fade_in_ms": 1200,
+        "fade_out_ms": 900,
+        "fade_steps": 64,
+        "cover": True,
+
+        "next_scene": "LOBBY",
+    },
 
     "final_screen_line": "Zaman sıfırlandı.",
     "ending_title": "Normal Son",
@@ -2123,13 +2193,7 @@ STORY_TR = {
     "final_hold_ms": 2400,
     "final_fade_ms": 1400,
     "title_pop_steps": 10,
-
-    "auto_next": "LOBBY",
-    "auto_next_after": True,
-    "auto_delay_ms": 0,
-    "auto_next_delay_ms": 0,
 },
-
 
 
 
@@ -2420,7 +2484,7 @@ STORY_TR = {
     "dizzy": {"mode": "blur", "intensity": "strong", "speed_ms": 60},
 
     "choices": {
-        "1": ("kendini topla ve koridora çık", "S04_CORRIDOR", []),
+        "1": ("kendini topla ve koridora çık", "S04_CORRIDOR7", []),
     },
 },
 
@@ -2546,17 +2610,47 @@ STORY_TR = {
     "auto_next_delay_ms": 0,
 },
 
-    "END_E02": {"text": "Kıpırdamazsın.||Tik… tak…||||Ayak sesleri yaklaşır.||Bu sefer durmaz.", "image": "images/end_e02.png", "ending": True},
-"END_E03": {
+
+"END_E02": {
     "layout": "single_focus",
-    "image": "images/end_e03.png",
-    "text": (
-        "Böyle bi ortamda karanlıkta kalmak ||"
-        "Pek de iyi bir fikir değil."
-    ),
+    "image": "images/end_e02.png",
+    "text": "##",
 
     "ending": True,
-    "ending_id": "END_E03",
+    "ending_id": "END_E02",
+
+    # ✅ FULLSCREEN sequence (tek görsel)
+    "ending_sequence_cfg": {
+        "images": [
+            "images/end_e02.png",
+        ],
+        "holds_ms": [5000],
+        "instant_switch": False,
+        "fade_in_ms": 1200,
+        "fade_out_ms": 900,
+        "fade_steps": 64,
+        "cover": True,
+
+        # ✅ altta yazacak metin (|| tokenlarıyla)
+        "overlay_text": (
+            "Kıpırdamazsın.||"
+            "Tik… tak…||"
+            "Ayak sesleri yaklaşır.||"
+            "Bu sefer durmaz.||"
+        ),
+
+        # ✅ token duraksamaları (yarım saniye)
+        "overlay_seg_pause_ms": 500,
+        "overlay_page_pause_ms": 900,
+        "overlay_box_pause_ms": 1200,
+
+        "next_scene": "LOBBY",
+    },
+
+    "ending_music": "sounds/ending_theme4.mp3",
+    "ending_music": "sounds/ending_ticking.mp3",
+    "ending_music_volume": 0.20,
+    "ending_music_start": True,
 
     "final_screen_line": "Saat: 02:18.",
     "ending_title": "son yazı",
@@ -2571,30 +2665,43 @@ STORY_TR = {
     "auto_delay_ms": 0,
     "auto_next_delay_ms": 0,
 },
-   
-    
-"END_CAUGHT_WHILE_REALIZING": {
-    "text": (
-        "Kaçmıyorsun||"
-        "Bakıyorsun||"
-        "Yüz hatları tanıdık… ama nedenini çıkaramıyorsun.[[BLINK]]|||"
-        "Bu an çok kısa sürüyor||"
-        "Arkana dönmeye fırsatın olmuyor||"
-        "Bir kol göğsünü sıkıca kavrıyor.[[BLINK]]|||"
-        "Nefesin kesiliyor||"
-        "[[BLACK2000]]"
-        "Bir süre sonra yatağındasın||"
-        "Kolların ve bacakların bağlı.[[BLINK]]|||"
-        "Oda karanlık||"
-        "Saat: 02:17||"
-        "Bu sefer kaçmayı denemedin bile.[[BLINK]]"
-    ),
+"END_E03": {
+    "layout": "single_focus",
+    "image": "images/end_e03.png",
+    "text": "##",
 
     "ending": True,
-    "ending_id": "CAUGHT_WHILE_REALIZING",
+    "ending_id": "END_E03",
 
-    "final_screen_line": "Saat: 02:17.",
-    "ending_title": "Tutsak son",
+    "ending_sequence_cfg": {
+        "images": [
+            "images/end_e03.png",
+        ],
+        "holds_ms": [5000],
+        "instant_switch": False,
+        "fade_in_ms": 1200,
+        "fade_out_ms": 900,
+        "fade_steps": 64,
+        "cover": True,
+
+        "overlay_text": (
+            "Böyle bi ortamda karanlıkta kalmak.||"
+            "Pek de iyi bir fikir değil.||"
+        ),
+
+        "overlay_seg_pause_ms": 500,
+        "overlay_page_pause_ms": 900,
+        "overlay_box_pause_ms": 1200,
+
+        "next_scene": "LOBBY",
+    },
+
+    "ending_music": "sounds/ending_theme3.mp3",
+    "ending_music_volume": 0.20,
+    "ending_music_start": True,
+
+    "final_screen_line": "Saat: 02:18.",
+    "ending_title": "Kötü son",
 
     "final_type_ms": 55,
     "final_hold_ms": 2400,
@@ -2606,6 +2713,63 @@ STORY_TR = {
     "auto_delay_ms": 0,
     "auto_next_delay_ms": 0,
 },
+"END_CAUGHT_WHILE_REALIZING": {
+    "layout": "single_focus",
+    "image": "images/end_caught.png",
+    "text": "##",
 
+    "ending": True,
+    "ending_id": "CAUGHT_WHILE_REALIZING",
+
+    "ending_sequence_cfg": {
+        "images": [
+            "images/end_caught.png",
+        ],
+        "holds_ms": [6000],
+        "instant_switch": False,
+        "fade_in_ms": 1200,
+        "fade_out_ms": 900,
+        "fade_steps": 64,
+        "cover": True,
+
+        "overlay_text": (
+            "Kaçmıyorsun||"
+            "Bakıyorsun||"
+            "Yüz hatları tanıdık… ama nedenini çıkaramıyorsun.||"
+            "Bu an çok kısa sürüyor||"
+            "Bir kol göğsünü sıkıca kavrıyor||"
+            "Nefesin kesiliyor||"
+            "□"
+            "Bir süre sonra yatağındasın||"
+            "Kolların ve bacakların bağlı||"
+            "Oda karanlık||"
+            "Saat: 02:17||"
+            "Bu sefer kaçmayı denemedin bile||"
+        ),
+
+        "overlay_seg_pause_ms": 500,
+        "overlay_page_pause_ms": 900,
+        "overlay_box_pause_ms": 2000,  # BLACK2000 hissi için
+
+        "next_scene": "LOBBY",
+    },
+
+    "ending_music": "sounds/ending_theme5.mp3",
+    "ending_music_volume": 0.20,
+    "ending_music_start": True,
+
+    "final_screen_line": "Saat: 02:17.",
+    "ending_title": "Tutsak Son",
+
+    "final_type_ms": 55,
+    "final_hold_ms": 2400,
+    "final_fade_ms": 1400,
+    "title_pop_steps": 10,
+
+    "auto_next": "LOBBY",
+    "auto_next_after": True,
+    "auto_delay_ms": 0,
+    "auto_next_delay_ms": 0,
+},
 }
 
