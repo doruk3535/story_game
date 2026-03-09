@@ -38,9 +38,12 @@ OVERLAY_TOKEN = "Ξ"  # ardışık overlay görsel tokenı (ortaya ekler)
 #   "[[BLACK]]"       -> default hold (180ms)
 #   "[[BLACK350]]"    -> hold 350ms
 BLACK_TOKEN_RE = re.compile(r"\[\[BLACK(?:(\d+))?\]\]")  # [[BLACK]] or [[BLACK180]]
+WHITE_TOKEN_RE = re.compile(r"\[\[WHITE(?:(\d+))?\]\]")  # [[WHITE]] or [[WHITE1800]]
 
 _black_fx_overlay = None
 _black_fx_running = False
+_white_fx_overlay = None
+_white_fx_running = False
 
 def _show_black_fx_overlay():
     """Create an always-opaque, topmost full black overlay (no transparency) to prevent flashes."""
@@ -119,6 +122,156 @@ def run_blackout_fx(hold_ms: int = 180, on_done=None):
         root.after(max(0, int(hold_ms)), _finish)
     except Exception:
         _finish()
+
+
+def _show_white_fx_overlay():
+    """Create a reusable white overlay for inline [[WHITE...]] tokens."""
+    global _white_fx_overlay
+    try:
+        if _white_fx_overlay is not None:
+            return _white_fx_overlay
+    except Exception:
+        _white_fx_overlay = None
+
+    try:
+        ov = tk.Toplevel(root)
+        ov.configure(bg="white")
+        ov.overrideredirect(True)
+        try:
+            ov.attributes("-topmost", True)
+            ov.attributes("-alpha", 0.0)
+        except Exception:
+            pass
+        try:
+            ov.geometry(f"{root.winfo_width()}x{root.winfo_height()}+{root.winfo_rootx()}+{root.winfo_rooty()}")
+        except Exception:
+            ov.geometry("+0+0")
+        try:
+            ov.withdraw()
+        except Exception:
+            pass
+        _white_fx_overlay = ov
+        return ov
+    except Exception:
+        _white_fx_overlay = None
+        return None
+
+
+def stop_white_fx_overlay():
+    """Destroy inline white overlay immediately (safe)."""
+    global _white_fx_overlay, _white_fx_running
+    _white_fx_running = False
+    try:
+        if _white_fx_overlay is not None:
+            _white_fx_overlay.destroy()
+    except Exception:
+        pass
+    _white_fx_overlay = None
+
+
+def run_whiteout_fx(hold_ms: int = 2000, fade_in_ms: int = 1000, fade_out_ms: int = 1000,
+                    steps: int = 24, color: str = "white", on_done=None):
+    """
+    Inline white flash token effect with fade-in -> hold -> fade-out.
+    Usage target: [[WHITE1800]] inside scene text.
+    """
+    global _white_fx_running
+
+    hold_ms = max(0, int(hold_ms))
+    fade_in_ms = max(0, int(fade_in_ms))
+    fade_out_ms = max(0, int(fade_out_ms))
+    steps = max(1, int(steps))
+
+    if _white_fx_running:
+        total = fade_in_ms + hold_ms + fade_out_ms
+        try:
+            root.after(max(0, total), lambda: on_done() if on_done else None)
+        except Exception:
+            if on_done:
+                on_done()
+        return
+
+    _white_fx_running = True
+    ov = _show_white_fx_overlay()
+    if ov is None:
+        _white_fx_running = False
+        if on_done:
+            on_done()
+        return
+
+    try:
+        ov.configure(bg=color)
+    except Exception:
+        pass
+    try:
+        ov.geometry(f"{root.winfo_width()}x{root.winfo_height()}+{root.winfo_rootx()}+{root.winfo_rooty()}")
+    except Exception:
+        pass
+    try:
+        ov.deiconify()
+        ov.lift()
+        ov.attributes("-alpha", 0.0)
+        root.update_idletasks()
+    except Exception:
+        pass
+
+    def _finish():
+        global _white_fx_running
+        try:
+            if ov is not None:
+                ov.withdraw()
+                ov.attributes("-alpha", 0.0)
+        except Exception:
+            pass
+        _white_fx_running = False
+        if on_done:
+            try:
+                on_done()
+            except Exception:
+                pass
+
+    def _fade_to(target_alpha, duration_ms, done_cb=None):
+        try:
+            cur = float(ov.attributes("-alpha"))
+        except Exception:
+            cur = 0.0
+
+        if duration_ms <= 0 or steps <= 1:
+            try:
+                ov.attributes("-alpha", target_alpha)
+                ov.lift()
+            except Exception:
+                pass
+            if done_cb:
+                done_cb()
+            return
+
+        step_ms = max(10, duration_ms // steps)
+        delta = (float(target_alpha) - cur) / float(steps)
+        state = {"i": 0, "cur": cur}
+
+        def _tick():
+            state["i"] += 1
+            state["cur"] += delta
+            if state["i"] >= steps:
+                state["cur"] = float(target_alpha)
+            try:
+                ov.attributes("-alpha", max(0.0, min(1.0, state["cur"])))
+                ov.lift()
+            except Exception:
+                pass
+            if state["i"] >= steps:
+                if done_cb:
+                    done_cb()
+                return
+            root.after(step_ms, _tick)
+
+        root.after(step_ms, _tick)
+
+    def _after_fade_in():
+        root.after(hold_ms, lambda: _fade_to(0.0, fade_out_ms, _finish))
+
+    _fade_to(1.0, fade_in_ms, _after_fade_in)
 
 _overlay_step_points = []
 _overlay_step_fired = set()
@@ -482,42 +635,24 @@ def show_ending_cinematic(scn):
         if not _ending_running:
             return
 
-        # ✅ DAN DİYE / POP animasyonu
-        pop_steps = int(scn.get("title_pop_steps", 10))
-        pop_ms    = int(scn.get("title_pop_ms", 180))
-        target    = int(scn.get("title_font", 56))
-
+        target = int(scn.get("title_font", 56))
         title_lbl = tk.Label(
             ov,
-            text=ending_title,
+            text="",
             bg="black",
             fg="white",
-            font=("Times New Roman", 10, "bold"),
+            font=("Times New Roman", target, "bold"),
             justify="center"
         )
         title_lbl.place(relx=0.5, rely=0.50, anchor="center")
 
-        step_delay = max(10, pop_ms // max(1, pop_steps))
-        start_size = 10
-        delta = (target - start_size) / max(1, pop_steps)
+        title_type_ms = int(scn.get("title_type_ms", scn.get("final_type_ms", 55)))
+        after_title_ms = int(scn.get("after_title_ms", 2000))
 
-        def pop(i=0):
-            if not _ending_running:
-                return
-            size = int(start_size + delta * i)
-            if i >= pop_steps:
-                size = target
-            try:
-                title_lbl.config(font=("Times New Roman", size, "bold"))
-            except Exception:
-                pass
-            if i < pop_steps:
-                root.after(step_delay, lambda: pop(i + 1))
+        def _after_title_done():
+            root.after(after_title_ms, lambda: ending_fade_to_menu(scn))
 
-        pop()
-        # ✅ Otomatik: siyah ekran bir süre kalsın, sonra lobby'e dön (tam menü)
-        delay_ms = int(scn.get("after_title_ms", 2000))
-        root.after(delay_ms, lambda: ending_fade_to_menu(scn))
+        typewriter_write(title_lbl, ending_title, ms_per_char=title_type_ms, on_done=_after_title_done)
 
 
     def do_fade(i=0):
@@ -571,7 +706,17 @@ def _finish_sequence_to_ending(scn: dict):
     # ✅ Bridge blackout prevents 1-frame background bleed when sequence overlay is destroyed
     _show_bridge_black()
     try:
+        root.update_idletasks()
+        root.update()
+    except Exception:
+        pass
+    try:
         stop_ending_sequence_overlay()
+    except Exception:
+        pass
+    try:
+        root.update_idletasks()
+        root.update()
     except Exception:
         pass
     try:
@@ -580,6 +725,418 @@ def _finish_sequence_to_ending(scn: dict):
         # If something goes wrong, remove bridge so it doesn't get stuck
         _hide_bridge_black()
         pass
+
+
+def show_scene_sequence_cinematic(scn: dict, cfg: dict):
+    """
+    Intro / ara sekans için ending sequence benzeri tam ekran cinematic.
+    Ama sonunda ending ekranı açmaz; doğrudan cfg["next_scene"] sahnesine gider.
+    """
+    global _endseq_overlay, _endseq_running
+
+    if _endseq_running:
+        return
+    _show_bridge_black()
+    stop_ending_sequence_overlay()
+    _endseq_running = True
+
+    try:
+        hide_choices_ui()
+        disable_choices()
+    except Exception:
+        pass
+    try:
+        carousel_canvas.place_forget()
+    except Exception:
+        pass
+    try:
+        card.place_forget()
+    except Exception:
+        pass
+
+    images = []
+    if isinstance(cfg, dict):
+        if isinstance(cfg.get("images"), (list, tuple)):
+            images = [str(x) for x in cfg.get("images") if x]
+        else:
+            for k in ("image", "image1", "image2", "image3", "image4"):
+                if cfg.get(k):
+                    images.append(str(cfg.get(k)))
+
+    if not images:
+        stop_ending_sequence_overlay()
+        _hide_bridge_black()
+        nxt = cfg.get("next_scene")
+        if nxt in story:
+            go_to(nxt)
+        return
+
+    if isinstance(cfg.get("holds_ms"), (list, tuple)):
+        holds = [int(x) for x in cfg.get("holds_ms")]
+    else:
+        hold1 = int(cfg.get("hold1_ms", 1200))
+        hold2 = int(cfg.get("hold2_ms", 1200))
+        holds = [hold1] + ([hold2] * (len(images) - 1))
+
+    if len(holds) < len(images):
+        holds = holds + [holds[-1] if holds else 1200] * (len(images) - len(holds))
+    holds = holds[:len(images)]
+
+    fade_steps = max(8, int(cfg.get("fade_steps", 64)))
+    fade_in_ms = max(0, int(cfg.get("fade_in_ms", 0)))
+    fade_out_ms = max(0, int(cfg.get("fade_out_ms", 0)))
+    use_cover = bool(cfg.get("cover", True))
+    direct_cut_between_images = bool(cfg.get("direct_cut_between_images", False))
+
+    try:
+        sw, sh = max(1, root.winfo_width()), max(1, root.winfo_height())
+    except Exception:
+        sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+
+    ov = tk.Toplevel(root)
+    ov.configure(bg="black")
+    ov.overrideredirect(True)
+    try:
+        ov.attributes("-topmost", True)
+        ov.attributes("-alpha", 1.0)
+    except Exception:
+        pass
+    try:
+        ov.geometry(f"{sw}x{sh}+{root.winfo_rootx()}+{root.winfo_rooty()}")
+    except Exception:
+        ov.geometry("+0+0")
+    _endseq_overlay = ov
+
+    try:
+        ov.lift()
+    except Exception:
+        pass
+    try:
+        root.update_idletasks()
+        root.update()
+    except Exception:
+        pass
+    _hide_bridge_black()
+
+    lbl = tk.Label(ov, bg="black", bd=0)
+    lbl.place(relx=0.5, rely=0.5, anchor="center")
+
+    _overlay_lbl = None
+    _ov_job = None
+
+    try:
+        _overlay_texts = cfg.get("overlay_texts")
+    except Exception:
+        _overlay_texts = None
+    if isinstance(_overlay_texts, (list, tuple)) and _overlay_texts:
+        _overlay_texts = [str(x or "") for x in _overlay_texts]
+    else:
+        _overlay_texts = None
+
+    try:
+        _base_overlay_text = str(cfg.get("overlay_text", "") or "")
+    except Exception:
+        _base_overlay_text = ""
+
+    def _overlay_text_for_index(idx: int) -> str:
+        try:
+            if _overlay_texts:
+                return _overlay_texts[idx] if idx < len(_overlay_texts) else _overlay_texts[-1]
+        except Exception:
+            pass
+        return _base_overlay_text
+
+    try:
+        _ov_font = cfg.get("overlay_font", story_label.cget("font"))
+    except Exception:
+        _ov_font = ("Segoe UI Semibold", 22)
+
+    try:
+        _ov_fg = str(cfg.get("overlay_fg", "white"))
+    except Exception:
+        _ov_fg = "white"
+
+    try:
+        _ov_bg = str(cfg.get("overlay_bg", "black"))
+    except Exception:
+        _ov_bg = "black"
+
+    try:
+        _ov_wrap = int(cfg.get("overlay_wrap", int(sw * 0.80)))
+    except Exception:
+        _ov_wrap = int(sw * 0.80)
+
+    try:
+        _ov_relx = float(cfg.get("overlay_relx", 0.5))
+    except Exception:
+        _ov_relx = 0.5
+    try:
+        _ov_rely = float(cfg.get("overlay_rely", 0.88))
+    except Exception:
+        _ov_rely = 0.88
+
+    def _cancel_overlay_job():
+        nonlocal _ov_job
+        try:
+            if _ov_job is not None:
+                root.after_cancel(_ov_job)
+        except Exception:
+            pass
+        _ov_job = None
+
+    _need_overlay = False
+    try:
+        _need_overlay = any(str(x or "").strip() for x in (_overlay_texts or [])) or bool(str(_base_overlay_text or "").strip())
+    except Exception:
+        _need_overlay = bool(str(_base_overlay_text or "").strip())
+
+    if _need_overlay:
+        _overlay_lbl = tk.Label(
+            ov,
+            text="",
+            bg=_ov_bg,
+            fg="#000000",
+            font=_ov_font,
+            justify="center",
+            wraplength=_ov_wrap,
+            bd=0,
+        )
+        _overlay_lbl.place(relx=_ov_relx, rely=_ov_rely, anchor="center")
+        try:
+            _overlay_lbl.lift()
+        except Exception:
+            pass
+
+    def _set_overlay_text(full_text, done=None):
+        nonlocal _ov_job
+        if _overlay_lbl is None:
+            if done:
+                done()
+            return
+
+        try:
+            type_ms = int(cfg.get("overlay_type_ms", 55))
+        except Exception:
+            type_ms = 55
+        try:
+            seg_pause = int(cfg.get("overlay_seg_pause_ms", 500))
+        except Exception:
+            seg_pause = 500
+        try:
+            page_pause = int(cfg.get("overlay_page_pause_ms", 700))
+        except Exception:
+            page_pause = 700
+        try:
+            box_pause = int(cfg.get("overlay_box_pause_ms", 1200))
+        except Exception:
+            box_pause = 1200
+
+        _cancel_overlay_job()
+        try:
+            _overlay_lbl.config(text="")
+        except Exception:
+            pass
+
+        actions = []
+        s = str(full_text or "")
+        i = 0
+        current_segment = 1
+        actions.append(("segment", current_segment))
+        while i < len(s):
+            if s.startswith("|||", i):
+                actions.append(("pause", page_pause))
+                actions.append(("ch", "\n"))
+                current_segment += 1
+                actions.append(("segment", current_segment))
+                i += 3
+                continue
+            if s.startswith("||", i):
+                actions.append(("pause", seg_pause))
+                actions.append(("ch", "\n"))
+                current_segment += 1
+                actions.append(("segment", current_segment))
+                i += 2
+                continue
+            if s[i] == "□":
+                actions.append(("pause", box_pause))
+                i += 1
+                continue
+            actions.append(("ch", s[i]))
+            i += 1
+
+        out_chars = []
+        idx_action = 0
+
+        def _step():
+            nonlocal idx_action, _ov_job
+            if not _endseq_running:
+                return
+            if idx_action >= len(actions):
+                _ov_job = None
+                if done:
+                    root.after(0, done)
+                return
+
+            kind, val = actions[idx_action]
+            idx_action += 1
+
+            if kind == "pause":
+                _ov_job = root.after(int(val), _step)
+                return
+            if kind == "segment":
+                _trigger_segment_sfx(cfg, int(val), key="overlay_segment_sfx")
+                _ov_job = root.after(0, _step)
+                return
+
+            out_chars.append(val)
+            try:
+                _overlay_lbl.config(text="".join(out_chars))
+            except Exception:
+                _ov_job = None
+                return
+
+            _ov_job = root.after(type_ms, _step)
+
+        _step()
+
+    pil_frames = []
+    black = None
+    if PIL_OK:
+        try:
+            from PIL import Image, ImageOps, ImageTk
+            for p in images:
+                ap = abs_path(p)
+                img = Image.open(ap).convert("RGBA")
+                if use_cover:
+                    img = ImageOps.fit(img, (sw, sh), method=Image.LANCZOS)
+                else:
+                    img.thumbnail((sw, sh), Image.LANCZOS)
+                    bg = Image.new("RGBA", (sw, sh), (0, 0, 0, 255))
+                    x = (sw - img.size[0]) // 2
+                    y = (sh - img.size[1]) // 2
+                    bg.paste(img, (x, y), img)
+                    img = bg
+                pil_frames.append(img)
+            black = Image.new("RGBA", (sw, sh), (0, 0, 0, 255))
+        except Exception:
+            pil_frames = []
+            black = None
+
+    def _load_frame(path):
+        return load_photo_cover(path, sw, sh) if use_cover else load_photo_fit(path, sw, sh)
+
+    def _set_blend(frame_idx: int, t: float):
+        if not _endseq_running:
+            return
+
+        t = 0.0 if t < 0 else (1.0 if t > 1 else float(t))
+
+        if pil_frames and black is not None and 0 <= frame_idx < len(pil_frames):
+            try:
+                from PIL import Image, ImageTk
+                im = Image.blend(black, pil_frames[frame_idx], t)
+                ph = ImageTk.PhotoImage(im)
+                lbl.config(image=ph)
+                lbl.image = ph
+            except Exception:
+                ph = _load_frame(images[frame_idx])
+                lbl.config(image=ph)
+                lbl.image = ph
+        else:
+            ph = _load_frame(images[frame_idx])
+            lbl.config(image=ph)
+            lbl.image = ph
+
+        try:
+            if _overlay_lbl is not None:
+                v = int(max(0.0, min(1.0, float(t))) * 255)
+                col = f"#{v:02x}{v:02x}{v:02x}"
+                _overlay_lbl.config(fg=col)
+                _overlay_lbl.lift()
+        except Exception:
+            pass
+
+    def _finish():
+        global _endseq_running
+        _cancel_overlay_job()
+        _show_bridge_black()
+        try:
+            root.update_idletasks()
+            root.update()
+        except Exception:
+            pass
+        try:
+            stop_ending_sequence_overlay()
+        except Exception:
+            pass
+        _endseq_running = False
+        nxt = cfg.get("next_scene")
+        if nxt in story:
+            try:
+                go_to(nxt)
+            finally:
+                try:
+                    root.after(180, _hide_bridge_black)
+                except Exception:
+                    _hide_bridge_black()
+        else:
+            try:
+                root.after(180, _hide_bridge_black)
+            except Exception:
+                _hide_bridge_black()
+
+    def _fade_in(frame_idx, done, i=0):
+        if not _endseq_running:
+            return
+        if fade_in_ms <= 0:
+            _set_blend(frame_idx, 1.0)
+            done()
+            return
+        if i > fade_steps:
+            done()
+            return
+        _set_blend(frame_idx, i / fade_steps)
+        root.after(max(10, fade_in_ms // fade_steps), lambda: _fade_in(frame_idx, done, i + 1))
+
+    def _fade_out(frame_idx, done, i=0):
+        if not _endseq_running:
+            return
+        if fade_out_ms <= 0:
+            _set_blend(frame_idx, 0.0)
+            done()
+            return
+        if i > fade_steps:
+            done()
+            return
+        _set_blend(frame_idx, 1.0 - (i / fade_steps))
+        root.after(max(10, fade_out_ms // fade_steps), lambda: _fade_out(frame_idx, done, i + 1))
+
+    def _show_index(idx=0):
+        if not _endseq_running:
+            return
+        if idx >= len(images):
+            _finish()
+            return
+
+        hold_ms = holds[idx]
+        current_overlay = _overlay_text_for_index(idx)
+
+        def after_fade_in():
+            def after_hold():
+                is_last = (idx == len(images) - 1)
+                if direct_cut_between_images and not is_last:
+                    _show_index(idx + 1)
+                else:
+                    _fade_out(idx, lambda: _show_index(idx + 1))
+
+            if current_overlay:
+                _set_overlay_text(current_overlay, done=lambda: root.after(hold_ms, after_hold))
+            else:
+                root.after(hold_ms, after_hold)
+
+        _fade_in(idx, after_fade_in)
+
+    _show_index(0)
 
 def show_ending_sequence_cinematic(scn: dict, cfg: dict):
     """
@@ -651,6 +1208,7 @@ def show_ending_sequence_cinematic(scn: dict, cfg: dict):
     fade_in_ms = max(0, int(cfg.get("fade_in_ms", 0)))
     fade_out_ms = max(0, int(cfg.get("fade_out_ms", 0)))
     use_cover = bool(cfg.get("cover", True))
+    direct_cut_between_images = bool(cfg.get("direct_cut_between_images", False))
 
     # Screen size (overlay size)
     try:
@@ -764,7 +1322,7 @@ def show_ending_sequence_cinematic(scn: dict, cfg: dict):
         try:
             seg_pause_ms = int(cfg.get("overlay_seg_pause_ms", 500))
         except Exception:
-            seg_pause_ms = 140
+            seg_pause_ms = 500
         try:
             page_pause_ms = int(cfg.get("overlay_page_pause_ms", 900))
         except Exception:
@@ -777,16 +1335,22 @@ def show_ending_sequence_cinematic(scn: dict, cfg: dict):
         # Build action list: ("ch", char) or ("pause", ms)
         actions = []
         i = 0
+        current_segment = 1
+        actions.append(("segment", current_segment))
         while i < len(full):
             # Handle triple first
             if full.startswith("|||", i):
                 actions.append(("pause", page_pause_ms))
                 actions.append(("ch", "\n"))
+                current_segment += 1
+                actions.append(("segment", current_segment))
                 i += 3
                 continue
             if full.startswith("||", i):
                 actions.append(("pause", seg_pause_ms))
                 actions.append(("ch", "\n"))
+                current_segment += 1
+                actions.append(("segment", current_segment))
                 i += 2
                 continue
             if full[i] == "□":
@@ -832,6 +1396,10 @@ def show_ending_sequence_cinematic(scn: dict, cfg: dict):
 
             if kind == "pause":
                 _ov_job = root.after(int(val), _step)
+                return
+            if kind == "segment":
+                _trigger_segment_sfx(cfg, int(val), key="overlay_segment_sfx")
+                _ov_job = root.after(0, _step)
                 return
 
             # kind == "ch"
@@ -1027,11 +1595,13 @@ def show_ending_sequence_cinematic(scn: dict, cfg: dict):
                     root.after(hold_ms, _finish_sequence_to_ending)
                 return
 
-            # Between frames: hold -> fade out -> next
+            # Between frames: either direct cut or fade out -> next
             def _after_out():
                 _show_idx(i + 1)
 
-            if fade_out_ms > 0:
+            if direct_cut_between_images:
+                root.after(hold_ms, _after_out)
+            elif fade_out_ms > 0:
                 root.after(hold_ms, lambda: _anim(i, 1.0, 0.0, fade_out_ms, _after_out))
             else:
                 root.after(hold_ms, _after_out)
@@ -1185,6 +1755,12 @@ def show_intro_cinematic(cfg: dict, on_done):
     except Exception:
         pass
 
+    # Intro scene special case: hide settings icon while fullscreen intro/title is active.
+    try:
+        hide_settings_button()
+    except Exception:
+        pass
+
     # stop any current looping music (menu music) and start intro music (if any)
     try:
         intro_music = cfg.get("intro_music")
@@ -1209,6 +1785,29 @@ def show_intro_cinematic(cfg: dict, on_done):
     except Exception:
         ov.geometry("+0+0")
     _intro_overlay = ov
+
+    def _keep_intro_overlay_on_top(repeats=40, delay=60):
+        global _intro_running
+        if not _intro_running or repeats <= 0:
+            return
+        try:
+            ov.lift()
+            try:
+                ov.attributes("-topmost", True)
+            except Exception:
+                pass
+        except Exception:
+            pass
+        try:
+            hide_settings_button()
+        except Exception:
+            pass
+        try:
+            root.after(delay, lambda: _keep_intro_overlay_on_top(repeats - 1, delay))
+        except Exception:
+            pass
+
+    _keep_intro_overlay_on_top()
 
     lbl = tk.Label(ov, bg="black", bd=0)
     lbl.place(relx=0.5, rely=0.5, anchor="center")
@@ -1243,6 +1842,13 @@ def show_intro_cinematic(cfg: dict, on_done):
                 pass
             try:
                 play_music_loop()
+            except Exception:
+                pass
+            try:
+                move_settings_button_default()
+                if audio_ui is not None:
+                    audio_ui.show_icon()
+                    audio_ui.lift()
             except Exception:
                 pass
             on_done()
@@ -1285,7 +1891,33 @@ def show_intro_cinematic(cfg: dict, on_done):
 
     def _finish():
         global _intro_running
-        stop_intro_overlay()
+        # Put a dedicated fullscreen black bridge ABOVE everything before switching scenes.
+        # This prevents the menu / global background from flashing through between intros.
+        try:
+            blk = _show_black_fx_overlay()
+            if blk is not None:
+                blk.lift()
+                try:
+                    blk.attributes("-alpha", 1.0)
+                except Exception:
+                    pass
+            root.update_idletasks()
+            root.update()
+        except Exception:
+            pass
+
+        try:
+            lbl.config(image="", bg="black")
+            lbl.image = None
+            ov.configure(bg="black")
+            ov.lift()
+            try:
+                ov.attributes("-alpha", 1.0)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
         _intro_running = False
         # intro done -> switch back to normal game music
         try:
@@ -1298,7 +1930,23 @@ def show_intro_cinematic(cfg: dict, on_done):
             play_music_loop()
         except Exception:
             pass
-        on_done()
+
+        try:
+            stop_intro_overlay()
+        except Exception:
+            pass
+
+        try:
+            on_done()
+        finally:
+            try:
+                hide_settings_button()
+            except Exception:
+                pass
+            try:
+                root.after(450, stop_black_fx_overlay)
+            except Exception:
+                stop_black_fx_overlay()
 
     # step 1: image1 full
     if img1:
@@ -1322,7 +1970,10 @@ def show_intro_cinematic(cfg: dict, on_done):
                 ov.attributes("-alpha", 1.0)
             except Exception:
                 pass
-            root.after(hold2_ms, lambda: _fade_alpha(0.0, fadeout_ms, _finish))
+            if fadeout_ms <= 0:
+                root.after(hold2_ms, _finish)
+            else:
+                root.after(hold2_ms, lambda: _fade_alpha(0.0, fadeout_ms, _finish))
             return
 
         lbl.config(image=img2)
@@ -1332,7 +1983,10 @@ def show_intro_cinematic(cfg: dict, on_done):
             ov.attributes("-alpha", 0.0)
         except Exception:
             pass
-        _fade_alpha(1.0, fade2_ms, lambda: root.after(hold2_ms, lambda: _fade_alpha(0.0, fadeout_ms, _finish)))
+        if fadeout_ms <= 0:
+            _fade_alpha(1.0, fade2_ms, lambda: root.after(hold2_ms, _finish))
+        else:
+            _fade_alpha(1.0, fade2_ms, lambda: root.after(hold2_ms, lambda: _fade_alpha(0.0, fadeout_ms, _finish)))
 
     root.after(hold1_ms, _step2_show_img2)
 
@@ -1344,7 +1998,7 @@ TR_INTRO_CFG = {
     "hold1_ms": 7020,
     "fade2_ms": 1,
     "hold2_ms": 4400,
-    "fadeout_ms": 1500,
+    "fadeout_ms": 0,
     "fade_steps": 64,
     "instant_switch": True,
 
@@ -1352,6 +2006,27 @@ TR_INTRO_CFG = {
     "intro_music": "sounds/dan.mp3",
     "intro_music_volume": 0.2,
     "intro_music_loop": False,
+}
+
+TR_INTRO_CFG_CAFETERIA = {
+    "image1": "images/intro_ch2_part.png",       # önce BÖLÜM 2
+    "image2": "images/intro_ch2_cafeteria.png",  # sonra KAFETERYA
+    "hold1_ms": 7020,
+    "fade2_ms": 1,
+    "hold2_ms": 4400,
+    "fadeout_ms": 0,
+    "fade_steps": 64,
+    "instant_switch": True,
+
+    # açılıştakiyle aynı ses/müzik
+    "intro_music": "sounds/dan.mp3",
+    "intro_music_volume": 0.2,
+    "intro_music_loop": False,
+}
+
+CAFETERIA_INTRO_TARGETS = {
+    "S8.7_CAFETERIA_KARSILASMA",
+    "S16_CAFETERIA_FROM_CAMERA",
 }
 
 
@@ -1802,6 +2477,7 @@ sfx_volume = sfx_volume_percent / 100.0
 sfx_loop_sound = None
 sfx_loop_channel = None
 
+inline_symbol_sfx_channel = None
 # ✅ 2nd LAYER MUSIC (plays alongside pygame.mixer.music)
 #   Scene usage:
 #     "scene_music": "sounds/theme.mp3",
@@ -2039,6 +2715,140 @@ def stop_sfx_loop():
     sfx_loop_playing = False
 
 
+
+
+
+def _normalize_inline_symbol_sfx_map(scn):
+    try:
+        raw = None
+        if isinstance(scn, dict):
+            raw = scn.get("inline_symbol_sfx", scn.get("symbol_sfx", scn.get("token_sfx", None)))
+        if not isinstance(raw, dict):
+            return {}
+        out = {}
+        for sym, entry in raw.items():
+            if not sym:
+                continue
+            if isinstance(entry, str):
+                out[str(sym)] = {"path": entry, "volume": 1.0}
+            elif isinstance(entry, dict):
+                p = entry.get("path")
+                if p:
+                    out[str(sym)] = {"path": str(p), "volume": float(entry.get("volume", 1.0))}
+        return out
+    except Exception as e:
+        print("[AUDIO] normalize inline symbol sfx error:", e)
+        return {}
+
+
+def _match_inline_symbol_sfx_token(scn, text_value, index):
+    try:
+        mp = _normalize_inline_symbol_sfx_map(scn)
+        if not mp or not isinstance(text_value, str):
+            return None, None
+        for sym in sorted(mp.keys(), key=len, reverse=True):
+            if text_value.startswith(sym, index):
+                return sym, mp[sym]
+    except Exception as e:
+        print("[AUDIO] inline symbol match error:", e)
+    return None, None
+
+
+def stop_inline_symbol_sfx():
+    global inline_symbol_sfx_channel
+    try:
+        if inline_symbol_sfx_channel:
+            inline_symbol_sfx_channel.stop()
+    except Exception as e:
+        print("[AUDIO] stop_inline_symbol_sfx error:", e)
+
+
+def play_inline_symbol_sfx(path_any: str, volume: float = 1.0):
+    global inline_symbol_sfx_channel
+    if not PYGAME_OK or not path_any:
+        return
+    try:
+        ap = abs_path(str(path_any))
+        if not os.path.exists(ap):
+            print("[AUDIO] inline symbol sfx missing:", path_any)
+            return
+        snd = pygame.mixer.Sound(ap)
+        if inline_symbol_sfx_channel is None:
+            inline_symbol_sfx_channel = pygame.mixer.Channel(4)
+        inline_symbol_sfx_channel.set_volume(float(volume) * sfx_volume)
+        inline_symbol_sfx_channel.play(snd)
+    except Exception as e:
+        print("[AUDIO] inline symbol sfx error:", e)
+def play_one_shot_sfx(path_any: str, volume: float = 1.0):
+    if not PYGAME_OK or not path_any:
+        return
+    try:
+        ap = abs_path(str(path_any))
+        if not os.path.exists(ap):
+            print("[AUDIO] one-shot sfx missing:", path_any)
+            return
+        snd = pygame.mixer.Sound(ap)
+        ch = pygame.mixer.find_channel(True)
+        if ch is None:
+            snd.set_volume(float(volume) * sfx_volume)
+            snd.play()
+            return
+        ch.set_volume(float(volume) * sfx_volume)
+        ch.play(snd)
+    except Exception as e:
+        print("[AUDIO] one-shot sfx error:", e)
+
+
+def _normalize_segment_sfx_entries(raw):
+    out = {}
+    if isinstance(raw, dict):
+        items = raw.items()
+    elif isinstance(raw, (list, tuple)):
+        items = []
+        for it in raw:
+            if isinstance(it, dict):
+                seg = it.get("segment", it.get("seg", it.get("index")))
+                items.append((seg, it))
+    else:
+        return out
+
+    for k, v in items:
+        try:
+            seg_no = int(k)
+        except Exception:
+            continue
+        if seg_no < 1:
+            continue
+
+        entry = None
+        if isinstance(v, str):
+            entry = {"path": v, "volume": 1.0}
+        elif isinstance(v, dict):
+            p = v.get("path") or v.get("sound") or v.get("sfx")
+            if p:
+                try:
+                    vol = float(v.get("volume", v.get("vol", 1.0)))
+                except Exception:
+                    vol = 1.0
+                entry = {"path": str(p), "volume": vol}
+        if entry:
+            out[seg_no] = entry
+    return out
+
+
+def _trigger_segment_sfx(cfg_obj, segment_no: int, key: str = "segment_sfx"):
+    try:
+        mapping = _normalize_segment_sfx_entries((cfg_obj or {}).get(key))
+    except Exception:
+        mapping = {}
+    entry = mapping.get(int(segment_no))
+    if not entry:
+        return
+    try:
+        play_one_shot_sfx(entry.get("path"), volume=float(entry.get("volume", 1.0)))
+    except Exception as e:
+        print(f"[AUDIO] {key} trigger error:", e)
+
 # ============================================================
 # CLICK ENGINE (NO FILE) - "TOK TOK" SOUND (SFX controlled)
 # ============================================================
@@ -2206,7 +3016,7 @@ def unlock_if_ending(scene_id: str):
     # VISIT-ONCE: block entering an already visited scene (handles auto_next/direct go_to)
     try:
         target_scene = story.get(sid, {}) if story else {}
-        if SCENE_VISIT_ONCE and (sid in visited_scenes) and (not target_scene.get("repeatable", False)):
+        if SCENE_VISIT_ONCE and (sid in visited_scenes) and (not target_scene.get("repeatable", False)) and (not _scene_is_visit_once_exempt(sid, target_scene)):
             # If a fallback is provided on the CURRENT scene, go there instead
             fb = None
             try:
@@ -2246,6 +3056,18 @@ VISITED_CHOICE_MODE = "hide"  # change to "disable" if you want grey buttons
 
 visited_scenes = set()
 
+def _scene_is_visit_once_exempt(scene_id: str, scn: dict | None = None) -> bool:
+    sid = str(scene_id or "")
+    scn = scn or {}
+    try:
+        if bool(scn.get("visit_once_exempt", False)):
+            return True
+    except Exception:
+        pass
+    # Corridor hubs should remain reusable even while visit-once is active.
+    return ("CORRIDOR" in sid.upper())
+
+
 current = "start"
 scene = None
 current_lang = None  # "EN" or "TR"
@@ -2267,6 +3089,77 @@ after_segment_hook = None
 
 # Image caches
 _img_cache = {}
+
+# GIF frame cache (reduces menu/intro/background stutter by decoding only once per size)
+_gif_frame_cache = {}
+
+def _fit_pil_cover(im, target_w, target_h):
+    if not PIL_OK or im is None:
+        return im
+    iw, ih = im.size
+    scale = max(float(target_w) / max(1, iw), float(target_h) / max(1, ih))
+    nw = max(1, int(iw * scale))
+    nh = max(1, int(ih * scale))
+    im = im.resize((nw, nh), Image.LANCZOS)
+    if nw != target_w or nh != target_h:
+        left = max(0, (nw - target_w) // 2)
+        top = max(0, (nh - target_h) // 2)
+        im = im.crop((left, top, left + target_w, top + target_h))
+    return im
+
+def _load_gif_frames_cached(path_rel, target_w, target_h, mode="stretch"):
+    """Return (frames, durations_ms) as cached PhotoImages for the given size/mode.
+
+    Optimization notes:
+    - cap effective frame count for large fullscreen GIFs
+    - enforce safer delays to keep Tkinter responsive
+    """
+    if not PIL_OK:
+        return [], []
+
+    ap = abs_path(path_rel)
+    key = (os.path.abspath(ap), int(target_w), int(target_h), str(mode).lower())
+    cached = _gif_frame_cache.get(key)
+    if cached is not None:
+        return cached
+
+    if not os.path.exists(ap):
+        _gif_frame_cache[key] = ([], [])
+        return [], []
+
+    frames = []
+    durations = []
+    try:
+        gif = Image.open(ap)
+        default_dur = int(gif.info.get("duration", 80) or 80)
+        n_frames = int(getattr(gif, "n_frames", 1) or 1)
+        max_effective_frames = 140 if (int(target_w) >= 1200 or int(target_h) >= 700) else 180
+        stride = max(1, (n_frames + max_effective_frames - 1) // max_effective_frames)
+
+        pending_delay = 0
+        for idx, fr in enumerate(ImageSequence.Iterator(gif)):
+            fr_delay = int(fr.info.get("duration", default_dur) or default_dur)
+            pending_delay += fr_delay
+            if idx % stride != 0:
+                continue
+
+            pil = fr.convert("RGBA")
+            if str(mode).lower() == "cover":
+                pil = _fit_pil_cover(pil, target_w, target_h)
+            else:
+                pil = pil.resize((target_w, target_h), Image.LANCZOS)
+            frames.append(ImageTk.PhotoImage(pil))
+            durations.append(max(80, min(250, pending_delay if pending_delay > 0 else default_dur)))
+            pending_delay = 0
+
+        if pending_delay and durations:
+            durations[-1] = max(80, min(250, durations[-1] + pending_delay))
+    except Exception as e:
+        print('[GIF CACHE] load error:', e)
+        frames, durations = [], []
+
+    _gif_frame_cache[key] = (frames, durations)
+    return frames, durations
 
 # Triptych layout
 IMG_W = 512
@@ -2299,8 +3192,8 @@ POP_FRAMES = 14
 POP_DELAY_12 = 140
 POP_DELAY_23 = 170
 
-TYPE_MS = 22
-PUNCT_MS = 260
+TYPE_MS = 26
+PUNCT_MS = 350
 HOOK_MS = 110
 
 # Carousel state
@@ -4000,6 +4893,171 @@ def _fade_out_then_switch(next_scene_id, do_switch_fn):
         else:
             _after_hold()
 
+
+# ------------------------------------------------------------
+# White portal / flash overlay helpers (scene-level, game_story-driven)
+# Scene config supported:
+#   "white_flash_transition": {
+#       "enabled": True,
+#       "duration_ms": 3000,
+#       "steps": 60,
+#       "hold_ms": 0,
+#       "start_alpha": 0.0,
+#       "target_alpha": 1.0,
+#       "color": "white"
+#   }
+# ------------------------------------------------------------
+_white_flash_overlay = None
+_white_flash_label = None
+_white_flash_job = None
+_white_flash_active_scene = None
+
+def _ensure_white_flash_overlay():
+    global _white_flash_overlay, _white_flash_label
+    if _white_flash_overlay is not None and _white_flash_overlay.winfo_exists():
+        return
+    ov = tk.Toplevel(root)
+    ov.overrideredirect(True)
+    ov.attributes("-topmost", True)
+    try:
+        ov.attributes("-alpha", 0.0)
+    except Exception:
+        pass
+    lbl = tk.Label(ov, bg="white")
+    lbl.pack(fill="both", expand=True)
+    _white_flash_overlay = ov
+    _white_flash_label = lbl
+    try:
+        ov.withdraw()
+    except Exception:
+        pass
+
+def _position_white_flash_overlay():
+    if _white_flash_overlay is None or (not _white_flash_overlay.winfo_exists()):
+        return
+    try:
+        root.update_idletasks()
+        w = max(1, root.winfo_width())
+        h = max(1, root.winfo_height())
+        x = root.winfo_rootx()
+        y = root.winfo_rooty()
+        _white_flash_overlay.geometry(f"{w}x{h}+{x}+{y}")
+    except Exception:
+        pass
+
+def stop_white_flash_transition():
+    global _white_flash_job, _white_flash_active_scene
+    _white_flash_active_scene = None
+    if _white_flash_job is not None and root is not None:
+        try:
+            root.after_cancel(_white_flash_job)
+        except Exception:
+            pass
+    _white_flash_job = None
+    try:
+        if _white_flash_overlay is not None and _white_flash_overlay.winfo_exists():
+            _white_flash_overlay.withdraw()
+            _white_flash_overlay.attributes("-alpha", 0.0)
+    except Exception:
+        pass
+
+def play_white_flash_transition(cfg: dict, scene_id: str = None, on_done=None):
+    global _white_flash_job, _white_flash_active_scene
+
+    if not isinstance(cfg, dict) or not bool(cfg.get("enabled", True)):
+        if on_done:
+            on_done()
+        return
+
+    stop_white_flash_transition()
+    _ensure_white_flash_overlay()
+    _position_white_flash_overlay()
+
+    color = str(cfg.get("color", "white") or "white")
+    try:
+        _white_flash_label.config(bg=color)
+    except Exception:
+        pass
+
+    try:
+        _white_flash_overlay.deiconify()
+        _white_flash_overlay.lift()
+    except Exception:
+        pass
+
+    start_alpha = float(cfg.get("start_alpha", 0.0) or 0.0)
+    target_alpha = float(cfg.get("target_alpha", 1.0) or 1.0)
+    duration_ms = max(0, int(cfg.get("duration_ms", 3000) or 3000))
+    steps = max(1, int(cfg.get("steps", 60) or 60))
+    hold_ms = max(0, int(cfg.get("hold_ms", 0) or 0))
+
+    start_alpha = max(0.0, min(1.0, start_alpha))
+    target_alpha = max(0.0, min(1.0, target_alpha))
+
+    _white_flash_active_scene = str(scene_id) if scene_id is not None else None
+
+    try:
+        _white_flash_overlay.attributes("-alpha", start_alpha)
+    except Exception:
+        pass
+
+    if duration_ms == 0 or steps <= 1:
+        try:
+            _white_flash_overlay.attributes("-alpha", target_alpha)
+        except Exception:
+            pass
+        if hold_ms > 0:
+            _white_flash_job = root.after(hold_ms, lambda: (stop_white_flash_transition(), on_done() if on_done else None))
+        elif on_done:
+            on_done()
+        return
+
+    step_ms = max(10, duration_ms // steps)
+    delta = (target_alpha - start_alpha) / float(steps)
+    state = {"i": 0, "cur": start_alpha}
+
+    def _finish():
+        global _white_flash_job
+        _white_flash_job = None
+        if on_done:
+            try:
+                on_done()
+            except Exception:
+                pass
+
+    def _tick():
+        global _white_flash_job
+
+        try:
+            if _white_flash_active_scene is not None and str(current) != str(_white_flash_active_scene):
+                stop_white_flash_transition()
+                return
+        except Exception:
+            pass
+
+        state["i"] += 1
+        state["cur"] += delta
+        if state["i"] >= steps:
+            state["cur"] = target_alpha
+        try:
+            _white_flash_overlay.attributes("-alpha", state["cur"])
+            _white_flash_overlay.lift()
+        except Exception:
+            pass
+
+        if state["i"] >= steps:
+            if hold_ms > 0:
+                _white_flash_job = root.after(hold_ms, _finish)
+            else:
+                _finish()
+            return
+
+        _white_flash_job = root.after(step_ms, _tick)
+
+    _white_flash_job = root.after(step_ms, _tick)
+
+
+
 def go_to(scene_id):
     """
     Scene change with optional fade transitions.
@@ -4013,6 +5071,7 @@ def go_to(scene_id):
     _stop_blink_cursor()
     cancel_auto_next()
     stop_clicks()
+    stop_white_flash_transition()
 
     if not (story and scene_id in story):
         print("[GO_TO ERROR] missing scene:", scene_id)
@@ -4354,6 +5413,17 @@ def type_step():
             return
 
 
+        matched_sym, matched_entry = _match_inline_symbol_sfx_token(scene, full_text, index)
+        if matched_sym and matched_entry:
+            try:
+                play_inline_symbol_sfx(matched_entry.get("path"), volume=float(matched_entry.get("volume", 1.0)))
+            except Exception as _e:
+                print("[AUDIO] inline_symbol_sfx trigger error:", _e)
+            index += len(matched_sym)
+            root.after(0, type_step)
+            return
+
+
         # ✅ FULL BLACK TOKEN: [[BLACK]] or [[BLACK180]] inside the same segment
         mm = None
         try:
@@ -4369,6 +5439,30 @@ def type_step():
                 hold_ms = 180
             index = mm.end()  # skip token
             run_blackout_fx(hold_ms=hold_ms, on_done=lambda: root.after(0, type_step))
+            return
+
+        # ✅ INLINE WHITE TOKEN: [[WHITE]] or [[WHITE1800]] with fade-in/hold/fade-out
+        mmw = None
+        try:
+            mmw = WHITE_TOKEN_RE.match(full_text, index)
+        except Exception:
+            mmw = None
+
+        if mmw:
+            hold_ms = 1800
+            try:
+                hold_ms = int(mmw.group(1) or 1800)
+            except Exception:
+                hold_ms = 1800
+            index = mmw.end()  # skip token
+            run_whiteout_fx(
+                hold_ms=hold_ms,
+                fade_in_ms=2000,
+                fade_out_ms=2000,
+                steps=24,
+                color="white",
+                on_done=lambda: root.after(0, type_step)
+            )
             return
 
         # ✅ PAUSE: "□" karakteri gördüğünde 1 saniye bekle (kare yazılmaz)
@@ -4505,6 +5599,11 @@ def play_text_segments_only(seg_list):
         part = segments[seg_i]
         seg_i += 1
 
+        try:
+            _trigger_segment_sfx(scene or {}, seg_i, key="segment_sfx")
+        except Exception:
+            pass
+
         if part == PAGEBREAK_TOKEN:
             _enter_pagebreak(lambda: root.after(HOOK_MS, write_next))
             return
@@ -4600,6 +5699,11 @@ def play_scene_segment_flow(img_list, seg_list):
         text_part = segments[seg_i]
         seg_i += 1
 
+        try:
+            _trigger_segment_sfx(scene or {}, seg_i, key="segment_sfx")
+        except Exception:
+            pass
+
         if text_part == PAGEBREAK_TOKEN:
             _enter_pagebreak(lambda: root.after(HOOK_MS, write_next_segment))
             return
@@ -4627,6 +5731,11 @@ def _is_single_focus_layout(scn: dict) -> bool:
 
 
 def load_scene():
+    try:
+        root.configure(bg="black")
+    except Exception:
+        pass
+
     # Background safety (every scene)
     try:
         # ensure background label is visible and behind everything
@@ -4666,9 +5775,15 @@ def load_scene():
     stop_dizzy()
 
     stop_sfx_loop()
+    stop_inline_symbol_sfx()
     sfx_started_this_scene = False
 
     scene = story[current]
+
+    try:
+        _apply_settings_button_visibility_for_scene(scene)
+    except Exception:
+        pass
 
     # reset cursor blink token for this new scene
     global _cursor_blink_requested
@@ -4720,6 +5835,14 @@ def load_scene():
 
     # ✅ Yeni sahne başında seçimleri gizle (metin akarken buton görünmesin)
     hide_choices_ui()
+
+    def _maybe_start_white_flash():
+        try:
+            wf_cfg = scene.get("white_flash_transition", None) if scene else None
+            if isinstance(wf_cfg, dict) and bool(wf_cfg.get("enabled", True)):
+                root.after(30, lambda cfg=dict(wf_cfg), sid=str(current): play_white_flash_transition(cfg, scene_id=sid))
+        except Exception as e:
+            print("[WHITE FLASH] start error:", e)
 
 
     # ✅ AUTO NEXT
@@ -4820,7 +5943,21 @@ def load_scene():
                     pass
         _overlay_step_points = pts
         _overlay_step_fired = set()
-        # ✅ HERO giriş animasyonu: önce görsel pop-in, sonra yazı akar
+        # ✅ Intro / ara sekans: ending gibi tam ekran cinematic ama sonunda next_scene'e gider.
+        seq_cfg = scene.get("scene_sequence_cfg") or scene.get("intro_sequence_cfg")
+        if isinstance(seq_cfg, dict):
+            try:
+                cancel_auto_next()
+            except Exception:
+                pass
+            show_scene_sequence_cinematic(scene, seq_cfg)
+            try:
+                if inv_ui:
+                    inv_ui.refresh()
+            except Exception:
+                pass
+            return
+
         # ✅ If this is an ENDING scene with an ending_sequence_cfg, run the stable sequence cinematic
         #    immediately (no hero pop-in). This prevents 1-frame flashes / stray frames between scenes.
         if scene.get("ending") is True:
@@ -4838,7 +5975,6 @@ def load_scene():
                     pass
                 return
 
-        
         # ✅ HERO giriş animasyonu: önce görsel pop-in, sonra yazı akar
         pop_in_hero(
             one,
@@ -4851,6 +5987,7 @@ def load_scene():
                 inv_ui.refresh()
         except Exception:
             pass
+        _maybe_start_white_flash()
         return
     try:
         set_story_card_visible(True)
@@ -4874,6 +6011,8 @@ def load_scene():
             inv_ui.refresh()
     except Exception:
         pass
+
+    _maybe_start_white_flash()
 
 
 # ============================================================
@@ -4948,7 +6087,7 @@ def show_buttons_for_scene():
                 try:
                     target_id = resolved[k][1]
                     target_scene = story.get(target_id, {}) if story else {}
-                    if (str(target_id) in visited_scenes) and (not target_scene.get("repeatable", False)):
+                    if (str(target_id) in visited_scenes) and (not target_scene.get("repeatable", False)) and (not _scene_is_visit_once_exempt(str(target_id), target_scene)):
                         exists = False
                 except Exception:
                     pass
@@ -4971,7 +6110,7 @@ def show_buttons_for_scene():
             try:
                 target_id = resolved[k][1]
                 target_scene = story.get(target_id, {}) if story else {}
-                already = (SCENE_VISIT_ONCE and (str(target_id) in visited_scenes) and (not target_scene.get("repeatable", False)))
+                already = (SCENE_VISIT_ONCE and (str(target_id) in visited_scenes) and (not target_scene.get("repeatable", False)) and (not _scene_is_visit_once_exempt(str(target_id), target_scene)))
             except Exception:
                 already = False
 
@@ -5056,7 +6195,29 @@ def choose(choice_key):
         print("[BAD NEXT]", current, choice_key, next_id)
         return
 
-    go_to(next_id)
+    next_id = str(next_id)
+
+    # ✅ Cafeteria intro intercept:
+    # Bu iki sahneye giderken önce özel intro oynat,
+    # intro bitince normal hedef sahneye devam et.
+    if next_id in CAFETERIA_INTRO_TARGETS:
+        target_scene = next_id
+
+        def _after_cafeteria_intro():
+            try:
+                _enter_game_view()
+            except Exception:
+                pass
+            try:
+                _apply_settings_button_visibility_for_scene()
+                _schedule_settings_button_refresh()
+            except Exception:
+                pass
+            go_to(target_scene)
+
+        show_intro_cinematic(TR_INTRO_CFG_CAFETERIA, _after_cafeteria_intro)
+    else:
+        go_to(next_id)
 
     try:
         if inv_ui:
@@ -5128,51 +6289,36 @@ def stop_global_bg_gif_background():
 
 
 def start_global_bg_gif_background(path_rel=GLOBAL_BG_GIF_REL):
-    """Loop an animated GIF on bg_label for the whole game."""
+    """Loop an animated GIF on bg_label for the whole game. Disabled by default for performance."""
     global _global_bg_gif_frames, _global_bg_gif_index, _global_bg_gif_job, _global_bg_gif_running, bg_img
+
+    if not path_rel:
+        return
 
     ap = abs_path(path_rel)
     if not (PIL_OK and os.path.exists(ap) and bg_label is not None):
         return
-
-    if _global_bg_gif_running and _global_bg_gif_frames:
-        return
-
-    stop_global_bg_gif_background()
 
     try:
         sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
     except Exception:
         sw, sh = 1280, 720
 
-    frames = []
-    duration_ms = 60
-    try:
-        gif = Image.open(ap)
-        try:
-            duration_ms = int(gif.info.get('duration', 60))
-        except Exception:
-            duration_ms = 60
-
-        for fr in ImageSequence.Iterator(gif):
-            f = fr.convert('RGBA').resize((sw, sh), Image.LANCZOS)
-            frames.append(ImageTk.PhotoImage(f))
-    except Exception as e:
-        print('[GLOBAL_BG_GIF] load error:', e)
-        return
-
+    frames, durations = _load_gif_frames_cached(path_rel, sw, sh, mode="stretch")
     if not frames:
         return
 
-    _global_bg_gif_frames = frames
+    stop_global_bg_gif_background()
+    _global_bg_gif_frames = list(zip(frames, durations))
     _global_bg_gif_index = 0
     _global_bg_gif_running = True
 
     def _tick():
         global _global_bg_gif_index, _global_bg_gif_job, bg_img
         if not _global_bg_gif_running or bg_label is None or not _global_bg_gif_frames:
+            _global_bg_gif_job = None
             return
-        frame = _global_bg_gif_frames[_global_bg_gif_index]
+        frame, delay = _global_bg_gif_frames[_global_bg_gif_index]
         bg_img = frame
         try:
             bg_label.config(image=frame)
@@ -5180,9 +6326,10 @@ def start_global_bg_gif_background(path_rel=GLOBAL_BG_GIF_REL):
             bg_label.place(x=0, y=0, relwidth=1, relheight=1)
             bg_label.lower()
         except Exception:
+            _global_bg_gif_job = None
             return
         _global_bg_gif_index = (_global_bg_gif_index + 1) % len(_global_bg_gif_frames)
-        _global_bg_gif_job = root.after(max(20, duration_ms), _tick)
+        _global_bg_gif_job = root.after(delay, _tick)
 
     _tick()
 
@@ -5193,6 +6340,7 @@ def reset_events():
         events[k] = False
     STATE.flags.clear()
     STATE.items.clear()
+    visited_scenes.clear()
 
 
 def stop_menu_gif_background():
@@ -5209,7 +6357,7 @@ def stop_menu_gif_background():
 
 
 def start_menu_gif_background(path_rel=MENU_BG_GIF_REL):
-    """Loop an animated GIF on the menu canvas background. Safe to call multiple times."""
+    """Loop an animated GIF on the menu canvas background. Uses cached frames."""
     global _menu_gif_frames, _menu_gif_index, _menu_gif_job, _menu_gif_running
 
     _init_menu_canvas_if_needed()
@@ -5220,40 +6368,19 @@ def start_menu_gif_background(path_rel=MENU_BG_GIF_REL):
     if not (PIL_OK and os.path.exists(ap)):
         return
 
-    # Already running with frames -> don't rebuild every menu refresh
-    if _menu_gif_running and _menu_gif_frames:
-        return
-
-    stop_menu_gif_background()
-
     try:
         sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
     except Exception:
         sw, sh = 1280, 720
 
-    frames = []
-    duration_ms = 60
-    try:
-        gif = Image.open(ap)
-        for fr in ImageSequence.Iterator(gif):
-            fr = fr.convert("RGBA")
-            fr = fr.resize((sw, sh), Image.LANCZOS)
-            frames.append(ImageTk.PhotoImage(fr))
-        try:
-            duration_ms = int(gif.info.get("duration", 60))
-        except Exception:
-            duration_ms = 60
-    except Exception as e:
-        print("[MENU_GIF] load error:", e)
-        return
-
+    frames, durations = _load_gif_frames_cached(path_rel, sw, sh, mode="stretch")
     if not frames:
         return
 
-    _menu_gif_frames = frames
+    stop_menu_gif_background()
+    _menu_gif_frames = list(zip(frames, durations))
     _menu_gif_index = 0
     _menu_gif_running = True
-    duration_ms = max(20, min(200, int(duration_ms)))
 
     def _tick():
         global _menu_gif_index, _menu_gif_job
@@ -5261,7 +6388,7 @@ def start_menu_gif_background(path_rel=MENU_BG_GIF_REL):
             _menu_gif_job = None
             return
         try:
-            ph = _menu_gif_frames[_menu_gif_index]
+            ph, delay = _menu_gif_frames[_menu_gif_index]
             menu_canvas.itemconfig(menu_bg_item, image=ph)
             menu_canvas.bg_anim = ph
             try:
@@ -5271,7 +6398,7 @@ def start_menu_gif_background(path_rel=MENU_BG_GIF_REL):
             except Exception:
                 pass
             _menu_gif_index = (_menu_gif_index + 1) % len(_menu_gif_frames)
-            _menu_gif_job = root.after(duration_ms, _tick)
+            _menu_gif_job = root.after(delay, _tick)
         except Exception:
             _menu_gif_job = None
 
@@ -5345,6 +6472,12 @@ def _show_menu_logo_only():
     global menu_canvas
     _ensure_bg_stack()
 
+    # Menu already has its own animated background; pause the global one to keep input smooth.
+    try:
+        stop_global_bg_gif_background()
+    except Exception:
+        pass
+
     try:
         carousel_canvas.place_forget()
     except Exception:
@@ -5370,17 +6503,104 @@ def _show_menu_logo_only():
 
     # Ensure UI is on top
     try:
-        card.lift()
+        hide_settings_button()
     except Exception:
         pass
+
+
+def ensure_settings_button_visible():
     try:
-        audio_ui.lift()
+        if audio_ui is not None:
+            move_settings_button_default()
+            audio_ui.show_icon()
+            audio_ui.lift()
     except Exception:
         pass
+
+def hide_settings_button():
     try:
-        inv_ui.lift()
+        if audio_ui is not None:
+            audio_ui.hide_icon()
     except Exception:
         pass
+
+
+SETTINGS_BTN_DEFAULT_POS = (18, 18)
+
+
+def move_settings_button_default():
+    try:
+        if audio_ui is not None:
+            audio_ui.set_position(*SETTINGS_BTN_DEFAULT_POS)
+    except Exception:
+        pass
+
+
+def move_settings_button_bottom_center(offset_y=24):
+    try:
+        if audio_ui is None:
+            return
+        root.update_idletasks()
+        x = max(12, int((root.winfo_width() - 60) / 2))
+        y = max(12, int(root.winfo_height() - 60 - offset_y))
+        audio_ui.set_position(x, y)
+    except Exception:
+        pass
+
+
+def _apply_settings_button_visibility_for_scene(scn=None):
+    try:
+        if scn is None:
+            scn = scene if 'scene' in globals() else None
+        if isinstance(scn, dict) and _is_single_focus_layout(scn):
+            hide_settings_button()
+        else:
+            ensure_settings_button_visible()
+    except Exception:
+        pass
+
+
+def _raise_top_ui():
+    try:
+        if card is not None:
+            card.lift()
+    except Exception:
+        pass
+
+    try:
+        _apply_settings_button_visibility_for_scene()
+    except Exception:
+        pass
+
+    try:
+        if audio_ui is not None and getattr(audio_ui, "opened", False):
+            audio_ui.panel.lift()
+            audio_ui.panel.tkraise()
+    except Exception:
+        pass
+
+    try:
+        if inv_ui is not None:
+            try:
+                inv_ui.refresh()
+            except Exception:
+                pass
+            if getattr(inv_ui, "btn", None) is not None:
+                inv_ui.btn.lift()
+                inv_ui.btn.tkraise()
+            if getattr(inv_ui, "opened", False):
+                inv_ui.panel.lift()
+                inv_ui.panel.tkraise()
+    except Exception:
+        pass
+
+
+def _schedule_settings_button_refresh():
+    for ms in (1, 50, 150, 300, 700, 1200):
+        try:
+            root.after(ms, _raise_top_ui)
+        except Exception:
+            pass
 
 
 def _ensure_bg_stack():
@@ -5417,7 +6637,7 @@ def _ensure_bg_stack():
 
 
 def _enter_game_view():
-    # Leave menu -> enter game: hard-hide menu canvas and show background
+    # Leave menu -> enter game: hide menu canvas, keep the same animated GIF as global bg
     try:
         stop_menu_gif_background()
     except Exception:
@@ -5429,6 +6649,10 @@ def _enter_game_view():
     try:
         if 'menu_canvas' in globals() and menu_canvas:
             menu_canvas.place_forget()
+            try:
+                menu_canvas.lower()
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -5439,12 +6663,22 @@ def _enter_game_view():
         pass
 
     try:
+        start_global_bg_gif_background(GLOBAL_BG_GIF_REL)
+    except Exception as e:
+        print('[GLOBAL_BG_GIF] resume error:', e)
+
+    try:
         carousel_canvas.place(relx=0.5, y=30, anchor="n")
         carousel_canvas.lift()
     except Exception:
         pass
 
     # UI layers on top
+    try:
+        _apply_settings_button_visibility_for_scene()
+        _schedule_settings_button_refresh()
+    except Exception:
+        pass
     try:
         card.lift()
     except Exception:
@@ -5464,7 +6698,7 @@ def set_english():
     reset_events()
     current_lang = "EN"
     story = STORY_EN
-    current = "S01_START" if "S01_START" in story else "start"
+    current = "INTRO_VIDEO" if "INTRO_VIDEO" in story else ("S01_START" if "S01_START" in story else "start")
     _enter_game_view()
     go_to(current)
 
@@ -5476,20 +6710,22 @@ def set_turkish():
     reset_events()
     current_lang = "TR"
     story = STORY_TR
-    current = "S01_START" if "S01_START" in story else "start"
+    current = "INTRO_VIDEO" if "INTRO_VIDEO" in story else ("S01_START" if "S01_START" in story else "start")
     _enter_game_view()
 
-    # ✅ TR seçilince önce intro cinematic oynat, sonra oyuna gir
-    def _go():
+    def _after_tr_intro():
         try:
             _enter_game_view()
         except Exception:
             pass
+        try:
+            _apply_settings_button_visibility_for_scene()
+            _schedule_settings_button_refresh()
+        except Exception:
+            pass
         go_to(current)
 
-    cfg = dict(TR_INTRO_CFG) if isinstance(globals().get("TR_INTRO_CFG"), dict) else {}
-    # if images are missing, it will skip automatically
-    show_intro_cinematic(cfg, on_done=_go)
+    show_intro_cinematic(TR_INTRO_CFG, _after_tr_intro)
 
 
 def on_escape(e=None):
@@ -5513,10 +6749,38 @@ class AudioSettingsOverlay:
         self.last_nonzero_music = 35 if music_volume_percent == 0 else music_volume_percent
         self.last_nonzero_sfx = 80 if sfx_volume_percent == 0 else sfx_volume_percent
 
-        self.btn = tk.Canvas(master, width=60, height=60, bg=master.cget("bg"), highlightthickness=0, bd=0)
-        self.btn.place(x=self.x, y=self.y)
+        # Keep the settings icon on its own tiny top-level host so menu canvases
+        # cannot cover it.
+        self.host = tk.Toplevel(master)
+        self.host.overrideredirect(True)
+        self.host.configure(bg=master.cget("bg"))
+        try:
+            self.host.attributes("-topmost", True)
+        except Exception:
+            pass
 
-        self.oval_id = self.btn.create_oval(3, 3, 55, 55, fill="#0f1730", outline="#2a3a6a", width=2, stipple="gray25")
+        self.btn = tk.Canvas(
+            self.host,
+            width=60,
+            height=60,
+            bg=master.cget("bg"),
+            highlightthickness=0,
+            bd=0,
+        )
+        self.btn.pack()
+        self._place_host()
+        try:
+            self.host.withdraw()
+        except Exception:
+            pass
+
+        self.oval_id = self.btn.create_oval(
+            3, 3, 55, 55,
+            fill="#0f1730",
+            outline="#2a3a6a",
+            width=2,
+            stipple="gray25",
+        )
 
         self.icon_img = None
         self.icon_img_raw = None
@@ -5536,6 +6800,7 @@ class AudioSettingsOverlay:
 
         def _hover_on(_):
             self.btn.itemconfig(self.oval_id, outline="#4f6cff")
+
         def _hover_off(_):
             self.btn.itemconfig(self.oval_id, outline="#2a3a6a")
 
@@ -5551,7 +6816,6 @@ class AudioSettingsOverlay:
         self.canvas.create_rectangle(6, 6, 314, 144, fill="#0f1730", outline="#2a3a6a", width=2, stipple="gray25")
         self.canvas.create_text(18, 22, text="AUDIO", anchor="w", fill="#cfd6ff", font=("Segoe UI Semibold", 10, "bold"))
 
-        # Music
         self.canvas.create_text(18, 48, text="MUSIC", anchor="w", fill="#cfd6ff", font=("Segoe UI Semibold", 9, "bold"))
         self.music_value_id = self.canvas.create_text(300, 48, text=f"{music_volume_percent}%", anchor="e", fill="white",
                                                       font=("Segoe UI Semibold", 9, "bold"))
@@ -5561,7 +6825,6 @@ class AudioSettingsOverlay:
         self.music_scale.set(music_volume_percent)
         self.music_scale.place(x=18, y=58)
 
-        # ✅ SFX
         self.canvas.create_text(18, 92, text="SFX (ORTAM SESLERI)", anchor="w", fill="#cfd6ff",
                                 font=("Segoe UI Semibold", 9, "bold"))
         self.sfx_value_id = self.canvas.create_text(300, 92, text=f"{sfx_volume_percent}%", anchor="e", fill="white",
@@ -5581,11 +6844,38 @@ class AudioSettingsOverlay:
         self.mute_music_btn.place(x=220, y=58, width=90, height=22)
         self.mute_sfx_btn.place(x=220, y=102, width=90, height=22)
 
+        self.master.bind("<Configure>", lambda e: self._place_host(), add="+")
         self.master.bind("<Button-1>", self._global_click, add="+")
+
+    def _place_host(self):
+        try:
+            self.host.geometry(
+                f"60x60+{self.master.winfo_rootx() + self.x}+{self.master.winfo_rooty() + self.y}"
+            )
+            self.host.lift()
+        except Exception:
+            pass
+
+    def set_position(self, x=None, y=None):
+        try:
+            if x is not None:
+                self.x = int(x)
+            if y is not None:
+                self.y = int(y)
+            self._place_host()
+            if self.opened:
+                self.close()
+        except Exception:
+            pass
 
     def lift(self):
         try:
-            self.btn.tkraise()
+            self._place_host()
+            self.host.lift()
+            try:
+                self.host.attributes("-topmost", True)
+            except Exception:
+                pass
         except Exception:
             pass
         if self.opened:
@@ -5593,6 +6883,28 @@ class AudioSettingsOverlay:
                 self.panel.tkraise()
             except Exception:
                 pass
+
+    def show_icon(self):
+        try:
+            self._place_host()
+            self.host.deiconify()
+            self.host.lift()
+            try:
+                self.host.attributes("-topmost", True)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def hide_icon(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+        try:
+            self.host.withdraw()
+        except Exception:
+            pass
 
     def _update_labels(self):
         self.canvas.itemconfig(self.music_value_id, text=f"{music_volume_percent}%")
@@ -5609,7 +6921,23 @@ class AudioSettingsOverlay:
         if self.opened:
             return
         self.opened = True
-        self.panel.place(x=self.x + 46, y=self.y)
+        panel_x = self.x + 46
+        panel_y = self.y
+        try:
+            sw = self.master.winfo_width()
+            sh = self.master.winfo_height()
+            pw = int(self.panel.winfo_reqwidth())
+            ph = int(self.panel.winfo_reqheight())
+            # Keep panel on-screen. If icon is near the bottom, open the panel upward.
+            if panel_y + ph > sh - 12:
+                panel_y = max(12, self.y - ph - 10)
+            if panel_x + pw > sw - 12:
+                panel_x = max(12, sw - pw - 12)
+            if panel_x < 12:
+                panel_x = 12
+        except Exception:
+            pass
+        self.panel.place(x=panel_x, y=panel_y)
         self._update_labels()
         self.lift()
 
@@ -5682,6 +7010,7 @@ class InventoryOverlay:
         self.x = x
         self.y = y
         self.opened = False
+        self.visible = False
 
         self.btn = tk.Button(
             master, text="",
@@ -5690,7 +7019,8 @@ class InventoryOverlay:
             activebackground="#24335c", activeforeground="white",
             font=("Segoe UI Semibold", 11, "bold")
         )
-        self.btn.place(x=self.x, y=self.y, width=80, height=40)
+        # Hidden until the player actually has an item.
+        self.btn.place_forget()
 
         self.panel = tk.Frame(master, bg=BG_COLOR, bd=0, highlightthickness=0)
         self.box = tk.Frame(self.panel, bg="#0f1730", bd=2, highlightbackground="#2a3a6a", highlightthickness=2)
@@ -5727,9 +7057,25 @@ class InventoryOverlay:
         if not inside_btn and not inside_panel:
             self.close()
 
+    def _set_visible(self, visible: bool):
+        self.visible = bool(visible)
+        if self.visible:
+            try:
+                self.btn.place(x=self.x, y=self.y, width=80, height=40)
+            except Exception:
+                pass
+        else:
+            try:
+                self.btn.place_forget()
+            except Exception:
+                pass
+            self.close()
+
     def refresh(self):
         items = sorted(list(STATE.items))
-        if not items:
+        has_items = bool(items)
+        self._set_visible(has_items)
+        if not has_items:
             text = "Boş."
         else:
             pretty = [it.replace("I_", "") for it in items]
@@ -5737,10 +7083,10 @@ class InventoryOverlay:
         self.list_lbl.config(text=text)
 
     def open(self):
-        if self.opened:
+        self.refresh()
+        if not self.visible or self.opened:
             return
         self.opened = True
-        self.refresh()
         self.panel.place(x=self.x, y=self.y + 46)
         self.box.pack()
 
@@ -5754,10 +7100,11 @@ class InventoryOverlay:
         self.close() if self.opened else self.open()
 
     def lift(self):
-        try:
-            self.btn.tkraise()
-        except Exception:
-            pass
+        if self.visible:
+            try:
+                self.btn.tkraise()
+            except Exception:
+                pass
         if self.opened:
             try:
                 self.panel.tkraise()
@@ -5814,9 +7161,8 @@ def show_main_menu():
     except Exception:
         pass
 
-    audio_ui.lift()
     try:
-        inv_ui.lift()
+        hide_settings_button()
     except Exception:
         pass
 
@@ -5845,9 +7191,9 @@ def show_language_screen():
     except Exception:
         pass
 
-    audio_ui.lift()
     try:
-        inv_ui.lift()
+        _raise_top_ui()
+        _schedule_settings_button_refresh()
     except Exception:
         pass
 
@@ -5859,10 +7205,19 @@ def start_main_after_splash(splash):
         pass
 
     root.deiconify()
+    try:
+        _schedule_settings_button_refresh()
+    except Exception:
+        pass
     root.attributes("-fullscreen", True)
     root.focus_force()
 
     show_main_menu()
+    try:
+        _raise_top_ui()
+        _schedule_settings_button_refresh()
+    except Exception:
+        pass
     play_music_loop()
 
 
@@ -6087,11 +7442,8 @@ bg_label = tk.Label(root, image=bg_img, bg=BG_COLOR)
 bg_label.image = bg_img
 bg_label.place(x=0, y=0, relwidth=1, relheight=1)  # show background
 
-# Prefer animated GIF background for the whole game when available
-try:
-    start_global_bg_gif_background(GLOBAL_BG_GIF_REL)
-except Exception as e:
-    print('[GLOBAL_BG_GIF] start error:', e)
+# Global animated background disabled by default for performance.
+# Keep a single animated layer active at a time (menu OR intro), not all game long.
 
 # ✅ Atmosphere overlay (vignette) - DISABLED for background stability
 vignette_img = None
