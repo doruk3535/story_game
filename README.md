@@ -13,4 +13,4 @@ A story-based interactive game developed in Python.
 - Pygame
 
 ## Status
-In development
+Demo
